@@ -1,0 +1,98 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  /* Brand color: Minimalist Pure Blue */
+  --color-brand: #2563eb; /* blue-600 */
+
+  /* Neutral palette */
+  --color-foreground: #111827; /* gray-900 */
+  --color-background: #ffffff; /* white */
+
+  /* Flatten all shadows based on architectural decisions */
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-xl: none;
+  --shadow-2xl: none;
+  --shadow-inner: none;
+  --drop-shadow-sm: none;
+  --drop-shadow-md: none;
+  --drop-shadow-lg: none;
+  --drop-shadow-xl: none;
+  --drop-shadow-2xl: none;
+
+  /* Flatten gradients */
+  --background-image-gradient-to-t: none;
+  --background-image-gradient-to-tr: none;
+  --background-image-gradient-to-r: none;
+  --background-image-gradient-to-br: none;
+  --background-image-gradient-to-b: none;
+  --background-image-gradient-to-bl: none;
+  --background-image-gradient-to-l: none;
+  --background-image-gradient-to-tl: none;
+}
+
+/* Global Styles */
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    @apply antialiased min-h-screen text-base;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+}
+
+/* Force 1px minimal borders for interactive elements where standard Tailwind might add a shadow/outline by default */
+@layer utilities {
+  .border-minimal {
+    border: 1px solid theme('colors.gray.200');
+  }
+}
+
+@layer components {
+  /* 默认状态：绝对隐蔽，没有任何样式区别 */
+  .whisper-mark {
+    /* No styles! Must inherit perfectly. */
+    border-bottom: 2px solid transparent;
+    transition: border-color 0.15s ease-in-out;
+    cursor: text;
+  }
+
+  /* 雷达唤醒状态：扁平蓝线，干脆利落 */
+  .radar-active .whisper-mark {
+    border-bottom-color: var(--color-brand);
+    cursor: pointer;
+  }
+
+  /* Tiptap Placeholder Fix */
+  .ProseMirror p.is-editor-empty:first-child::before {
+    color: #9ca3af; /* gray-400 */
+    content: attr(data-placeholder);
+    position: absolute;
+    pointer-events: none;
+  }
+
+  .ProseMirror p {
+    position: relative;
+    min-height: 1.625em; /* Match Tailwind leading-relaxed */
+    margin-bottom: 0.5em;
+    outline: none;
+  }
+
+  .ProseMirror img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.5rem;
+  }
+}
+
+/* WhisperNode Visual Hint */
+.whisper-mark {
+  border-bottom: 1px dashed #d1d5db; /* gray-300 */
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+.whisper-mark:hover {
+  background-color: #f9fafb; /* gray-50 */
+}
