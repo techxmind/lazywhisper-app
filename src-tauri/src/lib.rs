@@ -256,7 +256,7 @@ pub fn run() {
                     };
 
                     if path_str.ends_with(".wspace") {
-                        handle_opened_file(app_handle, path_str);
+                        handle_opened_file(_app_handle, path_str);
                         break;
                     }
                 }
