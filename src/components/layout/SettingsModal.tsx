@@ -3,6 +3,7 @@ import { Key, Info } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { getVersion } from '@tauri-apps/api/app';
 import { useTranslation } from 'react-i18next';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [appVersion, setAppVersion] = useState('');
+  const { theme, setTheme } = useTheme();
 
   // UX State
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
@@ -172,6 +174,24 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
                 >
                   <option value="en">{t('settings.langEn')}</option>
                   <option value="zh">{t('settings.langZh')}</option>
+                </select>
+                <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between py-4">
+              <label className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-0">{t('settings.theme')}</label>
+              <div className="relative w-48">
+                <select
+                  value={theme}
+                  onChange={(e) => setTheme(e.target.value as 'system' | 'light' | 'dark')}
+                  className="appearance-none bg-white border border-gray-200 rounded-lg py-2.5 px-3 text-sm text-gray-700 w-full focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                >
+                  <option value="system">{t('settings.themeSystem')}</option>
+                  <option value="light">{t('settings.themeLight')}</option>
+                  <option value="dark">{t('settings.themeDark')}</option>
                 </select>
                 <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
