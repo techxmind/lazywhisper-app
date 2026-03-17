@@ -1,14 +1,12 @@
-# Tauri + React + Typescript
+# LazyWhisper (懒人密语)
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+> Your Data has a Soul. Math Keeps it Private.  
+> 数据有灵，数学封存。
+
+**Official Website / 官方网站**: [https://lazywhisper.lz-md.com/](https://lazywhisper.lz-md.com/)
+
+A minimalist, local-first, deeply encrypted personal privacy vault built with Tauri, React, and Rust. No cloud sync, no tracking, just you and your secrets.
 
 ## Recommended IDE Setup
 
 - [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
-
-## Upgrade Version
-```bash
-npm version minor    # 自动升级到 1.1.0 
-# 或者
-npm version patch    # 自动升级到 1.0.3
-```
