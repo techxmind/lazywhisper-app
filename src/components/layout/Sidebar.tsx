@@ -3,6 +3,7 @@ import { Plus, FileText, Trash2, Settings, Lock } from 'lucide-react';
 import { VaultDocument } from '../../App';
 
 interface SidebarProps {
+  isMobileMenuOpen: boolean;
   onLock: () => void;
   onOpenSettings: () => void;
   documents: VaultDocument[];
@@ -13,11 +14,16 @@ interface SidebarProps {
   unsavedDocIds: Set<string>;
 }
 
-export function Sidebar({ onLock, onOpenSettings, documents, activeDocId, onDocSelect, onNewDoc, onDeleteDoc, unsavedDocIds }: SidebarProps) {
+export function Sidebar({ isMobileMenuOpen, onLock, onOpenSettings, documents, activeDocId, onDocSelect, onNewDoc, onDeleteDoc, unsavedDocIds }: SidebarProps) {
   const { t } = useTranslation();
 
   return (
-    <div className="w-64 border-r border-gray-200 bg-[#F8F9FA] flex flex-col h-full">
+    <aside className={`
+      fixed inset-y-0 left-0 z-50 w-64 bg-[#F8F9FA] dark:bg-zinc-900 border-r border-gray-200 dark:border-zinc-800 flex flex-col h-full
+      transform transition-transform duration-300 ease-in-out
+      md:relative md:translate-x-0 
+      ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+    `}>
       {/* 顶部区域 Header */}
       <div className="p-6 pb-4">
         <h1 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
@@ -88,6 +94,6 @@ export function Sidebar({ onLock, onOpenSettings, documents, activeDocId, onDocS
           <span>{t('sidebar.lock')}</span>
         </button>
       </div>
-    </div>
+    </aside>
   );
 }

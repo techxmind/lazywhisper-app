@@ -191,9 +191,10 @@ fn handle_opened_file(app: &tauri::AppHandle, path: String) {
     let _ = app.emit("wspace-file-opened", &path);
 }
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     write_debug_log("🚀 [RUST] 应用程序进程启动");
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .setup(|_app| {
             let args: Vec<String> = std::env::args().collect();
             write_debug_log(&format!("📦 [RUST SETUP] 拿到命令行参数: {:?}", args));
@@ -209,8 +210,11 @@ pub fn run() {
             }
             
             Ok(())
-        })
-        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+        });
+
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             // Windows / Linux duplicate launch args interception
             for arg in args {
                 if arg.ends_with(".wspace") {
@@ -226,8 +230,11 @@ pub fn run() {
                 }
             }
         }))
+        .plugin(tauri_plugin_window_state::Builder::default().build());
+    }
+
+    builder
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![

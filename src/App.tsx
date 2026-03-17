@@ -46,6 +46,7 @@ function App() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [lastSavedTimestamp, setLastSavedTimestamp] = useState(Date.now());
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const updateWindowTitle = async () => {
@@ -539,19 +540,46 @@ function App() {
           error={unlockError}
         />
       ) : (
-        <div className="h-screen w-screen flex overflow-hidden bg-white">
+        <div className="flex h-screen w-full bg-white dark:bg-zinc-950 overflow-hidden">
+          {/* 移动端毛玻璃遮罩 */}
+          {isMobileMenuOpen && (
+            <div 
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden transition-opacity"
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+          )}
+
           <Sidebar
+            isMobileMenuOpen={isMobileMenuOpen}
             onLock={handleManualLock}
-            onOpenSettings={() => setIsSettingsOpen(true)}
+            onOpenSettings={() => { setIsSettingsOpen(true); setIsMobileMenuOpen(false); }}
             documents={documents}
             activeDocId={activeDocId}
-            onDocSelect={setActiveDocId}
-            onNewDoc={handleNewDoc}
+            onDocSelect={(id) => { setActiveDocId(id); setIsMobileMenuOpen(false); }}
+            onNewDoc={(...args) => { handleNewDoc(...args); setIsMobileMenuOpen(false); }}
             onDeleteDoc={handleDeleteDoc}
             unsavedDocIds={unsavedDocIds}
           />
-          <div className="flex-1 flex flex-col overflow-y-auto relative">
-            <div className="flex-1 w-full flex flex-col items-center">
+          
+          <main className="flex-1 flex flex-col h-full relative overflow-hidden bg-white dark:bg-zinc-950">
+            {/* 移动端顶部 Header */}
+            <header className="md:hidden h-14 border-b border-gray-200 dark:border-zinc-800 flex items-center px-4 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md z-10 shrink-0">
+              <button 
+                type="button" 
+                onClick={() => setIsMobileMenuOpen(true)} 
+                className="p-2 -ml-2 text-gray-500 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors"
+                aria-label="Open Menu"
+              >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              <span className="ml-2 font-medium text-gray-800 dark:text-zinc-200">
+                {t('sidebar.brand') || 'LazyWhisper'}
+              </span>
+            </header>
+
+            <div className="flex-1 w-full flex flex-col items-center overflow-y-auto pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
               {activeDoc ? (
                 <ZenEditor 
                   activeDoc={activeDoc}
@@ -573,7 +601,7 @@ function App() {
                 </div>
               )}
             </div>
-          </div>
+          </main>
         </div>
       )}
 
