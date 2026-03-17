@@ -29,6 +29,8 @@
 - **Focus Rings**:
   - `bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow`
 - **No Underlines**: Absolutely no minimalist underline text fields. All inputs must be fully bounded containers.
+- **Global Input Security (No Safari/OS Interference)**: All password inputs, temporary keys, and secret textareas MUST explicitly disable OS-level auto-correction, spell check, and auto-capitalization to prevent leakage or annoying UX during secure entry.
+  - MUST include: `spellCheck="false" autoCorrect="off" autoCapitalize="off"`
 
 ## States & Feedback
 - **Error/Warning States**:

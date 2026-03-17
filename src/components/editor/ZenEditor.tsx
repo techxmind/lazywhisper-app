@@ -62,22 +62,13 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
   // Performance Enhancement: Decouple high-frequency typing from Global State
   const [localContent, setLocalContent] = useState(activeDoc.content);
   const localContentRef = useRef(activeDoc.content); // For instant sync logic bypassing stale closures
+  const localTitleRef = useRef(activeDoc.title || t('sidebar.untitled'));
 
   useEffect(() => {
     const handler = setTimeout(() => {
       // Only push up to App.tsx if the local content has actually drifted from the baseline
       if (localContentRef.current !== baselineContentRef.current) {
-        // We need to extract the title safely without relying on the editor instance if it's destroyed,
-        // but since we debounce, editor might still be alive.
-        // For absolute safety, parse the first line from HTML or text.
-        // Actually, Tiptap's `editor.state.doc` is best. Let's keep it simple: just push the content.
-        // The title extraction can be done in App.tsx or here by checking editor instance.
-        let newTitle = t('sidebar.untitled');
-        if (editor) {
-          const firstLineText = editor.state.doc.firstChild?.textContent;
-          newTitle = firstLineText ? firstLineText.trim() : t('sidebar.untitled');
-        }
-        onContentChange(activeDoc.id, localContentRef.current, newTitle, true);
+        onContentChange(activeDoc.id, localContentRef.current, localTitleRef.current, true);
       }
     }, 500);
 
@@ -104,13 +95,19 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
       }),
     ],
     content: activeDoc.content,
-    onUpdate: ({ editor }) => {
-      const currentHTML = editor.getHTML();
+    onUpdate: ({ editor: currentEditor }) => {
+      const firstLineText = currentEditor.state.doc.firstChild?.textContent;
+      localTitleRef.current = firstLineText ? firstLineText.trim() : t('sidebar.untitled');
+
+      const currentHTML = currentEditor.getHTML();
       localContentRef.current = currentHTML;
       setLocalContent(currentHTML); // triggers the debounce effect
     },
     editorProps: {
       attributes: {
+        spellcheck: 'false',
+        autocorrect: 'off',
+        autocapitalize: 'off',
         class: 'prose prose-slate max-w-none pt-2 ' +
           'prose-h1:text-4xl prose-h1:font-bold prose-h1:mb-6 prose-h1:mt-8 ' +
           'prose-h2:text-2xl prose-h2:font-semibold prose-h2:mt-8 prose-h2:mb-4 ' +
@@ -238,8 +235,9 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
         setLocalContent(activeDoc.content);
       }
       baselineContentRef.current = editor.getHTML();
+      localTitleRef.current = activeDoc.title || t('sidebar.untitled');
     }
-  }, [activeDoc.id, editor]); // rely on doc ID swap
+  }, [activeDoc.id, editor, activeDoc.content, activeDoc.title, t]); // rely on doc ID swap
 
   // Force baseline diff synchronization on global saves
   useEffect(() => {
@@ -621,6 +619,9 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
                       placeholder={!activeDoc.whisperKeyHash ? t('whisper.setKey') : t('modal.keyPlaceholder')}
                       value={whisperKey}
                       onChange={(e) => setWhisperKey(e.target.value)}
+                      spellCheck="false"
+                      autoCorrect="off"
+                      autoCapitalize="off"
                       className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
                     />
                     {!activeDoc.whisperKeyHash ? (
@@ -635,6 +636,9 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
                       placeholder={t('whisper.confirmKey')}
                       value={confirmWhisperKey}
                       onChange={(e) => setConfirmWhisperKey(e.target.value)}
+                      spellCheck="false"
+                      autoCorrect="off"
+                      autoCapitalize="off"
                       className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
                     />
                   )}
@@ -648,6 +652,9 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
                   placeholder={t('modal.secretPlaceholder')}
                   value={realSecret}
                   onChange={(e) => setRealSecret(e.target.value)}
+                  spellCheck="false"
+                  autoCorrect="off"
+                  autoCapitalize="off"
                   className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow resize-none"
                   rows={4}
                   autoFocus
@@ -708,6 +715,9 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
                 placeholder={t('export.placeholder')}
                 value={exportPassword}
                 onChange={(e) => setExportPassword(e.target.value)}
+                spellCheck="false"
+                autoCorrect="off"
+                autoCapitalize="off"
                 className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow"
                 autoFocus
                 onKeyDown={(e) => {
@@ -767,6 +777,9 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
                   placeholder={t('reveal.placeholder')}
                   value={revealKey}
                   onChange={(e) => setRevealKey(e.target.value)}
+                  spellCheck="false"
+                  autoCorrect="off"
+                  autoCapitalize="off"
                   className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest disabled:opacity-50 disabled:bg-gray-50"
                   autoFocus
                   disabled={!!revealLockoutEndTime || revealNewerVersion}

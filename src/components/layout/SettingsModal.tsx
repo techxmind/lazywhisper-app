@@ -211,6 +211,9 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
                 placeholder={t('settings.currentPwd')}
                 value={oldPassword}
                 onChange={(e) => setOldPassword(e.target.value)}
+                spellCheck="false"
+                autoCorrect="off"
+                autoCapitalize="off"
                 className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
                 autoFocus
               />
@@ -219,6 +222,9 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
                 placeholder={t('settings.newPwd')}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
+                spellCheck="false"
+                autoCorrect="off"
+                autoCapitalize="off"
                 className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
               />
               <input
@@ -226,6 +232,9 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
                 placeholder={t('settings.confirmNewPwd')}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
+                spellCheck="false"
+                autoCorrect="off"
+                autoCapitalize="off"
                 className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleUpdatePassword();
