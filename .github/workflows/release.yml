@@ -15,8 +15,6 @@ jobs:
         include:
           - platform: "macos-latest" # For Silicon & Intel Mac
             args: "--target universal-apple-darwin"
-          - platform: "ubuntu-22.04" # For Linux
-            args: ""
           - platform: "windows-latest" # For Windows
             args: ""
 
@@ -35,16 +33,11 @@ jobs:
         with:
           # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
-
-      - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
+      
       - name: install frontend dependencies
         run: npm ci
 
+      # 这一步 Tauri 会执行构建，并创建一个 GitHub Draft Release
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -55,3 +48,41 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+      # -----------------------------------------------------------
+      # 🚀 新增：自动接管产物并推送到 Cloudflare R2 (macOS)
+      # -----------------------------------------------------------
+      - name: 🚀 Upload macOS DMG to Cloudflare R2
+        if: matrix.platform == 'macos-latest'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          echo "Scanning for DMG file..."
+          # 递归搜索 target 目录下的 dmg，兼容 universal 路径
+          DMG_FILE=$(find src-tauri/target -name "*.dmg" | head -n 1)
+          echo "Found DMG: $DMG_FILE"
+          
+          # 强行覆盖上传，永远保持 latest 目录下的文件是最新版
+          aws s3 cp "$DMG_FILE" s3://lazywhisper-releases/latest/LazyWhisper-mac.dmg \
+            --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+
+      # -----------------------------------------------------------
+      # 🚀 新增：自动接管产物并推送到 Cloudflare R2 (Windows)
+      # -----------------------------------------------------------
+      - name: 🚀 Upload Windows EXE to Cloudflare R2
+        if: matrix.platform == 'windows-latest'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          Write-Host "Scanning for Windows Installer..."
+          # 使用 PowerShell 递归搜索 bundle 目录下的 exe 或 msi 安装包
+          $INSTALLER = Get-ChildItem -Path "src-tauri\target" -Recurse -Include *.exe,*.msi | Where-Object { $_.FullName -match "bundle" } | Select-Object -First 1
+          Write-Host "Found Installer: $($INSTALLER.FullName)"
+          
+          # 上传并覆盖
+          aws s3 cp "$($INSTALLER.FullName)" s3://lazywhisper-releases/latest/LazyWhisper-win.exe `
+            --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
