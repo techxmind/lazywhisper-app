@@ -242,7 +242,7 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app_handle, event| match event {
+        .run(|_app_handle, event| match event {
             #[cfg(any(target_os = "macos", target_os = "ios"))]
             tauri::RunEvent::Opened { urls } => {
                 // macOS AppleEvents / Deep linking interception
