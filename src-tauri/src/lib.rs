@@ -2,11 +2,9 @@ mod crypto;
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::env;
-use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{Manager, Emitter};
 use zeroize::Zeroizing;
 
@@ -14,7 +12,7 @@ const CURRENT_CRYPTO_VERSION: &str = "v1";
 
 static PENDING_PATHS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
-fn write_debug_log(msg: &str) {
+fn write_debug_log(_msg: &str) {
     /*
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
     let log_entry = format!("[{}] {}\n", now, msg);
@@ -245,6 +243,7 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| match event {
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
             tauri::RunEvent::Opened { urls } => {
                 // macOS AppleEvents / Deep linking interception
                 println!("🚨 [MACOS ALERT] 操作系统触发了 Opened 事件! 包含 {} 个 URL", urls.len());
