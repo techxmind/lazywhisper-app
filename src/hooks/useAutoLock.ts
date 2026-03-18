@@ -9,7 +9,6 @@ interface UseAutoLockProps {
     min: number;
     isLocked: boolean;
     vaultPath: string;
-    vaultPassword?: string;
     documents: VaultDocument[];
     hasUnsaved: boolean;
   }>;
@@ -57,7 +56,6 @@ export function useAutoLock({ autoLockRef, forceLock, lockInProgressRef }: UseAu
             console.log("🔒 [Auto-Lock] 检测到未保存数据，正在安全落盘...");
             await invoke('save_vault', {
               filename: state.vaultPath,
-              password: state.vaultPassword,
               content: JSON.stringify(state.documents)
             });
           } catch (error) {

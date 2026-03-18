@@ -23,7 +23,7 @@ function formatTime(timestamp: number): string {
 interface ZenEditorProps {
   activeDoc: VaultDocument;
   documents: VaultDocument[];
-  vaultPassword?: string;
+  hasActiveSession?: boolean;
   sessionWhisperKey: string | null;
   onSetSessionWhisperKey: (key: string | null) => void;
   onUpdateDocHash: (id: string, hash: string) => void;
@@ -37,7 +37,7 @@ interface ZenEditorProps {
   editorInstanceRef?: React.MutableRefObject<{ destroy: () => void; commands: { clearContent: (emitUpdate?: boolean) => boolean } } | null>;
 }
 
-export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhisperKey, onSetSessionWhisperKey, onUpdateDocHash, onContentChange, onSave, hasUnsavedChanges, isSaving, isSaved, lastSavedTimestamp, editorFocusTrigger, editorInstanceRef }: ZenEditorProps) {
+export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sessionWhisperKey, onSetSessionWhisperKey, onUpdateDocHash, onContentChange, onSave, hasUnsavedChanges, isSaving, isSaved, lastSavedTimestamp, editorFocusTrigger, editorInstanceRef }: ZenEditorProps) {
   const { t, i18n } = useTranslation();
 
   const [mobileHeaderNode, setMobileHeaderNode] = useState<Element | null>(null);
@@ -746,7 +746,7 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
           : 'text-gray-400 md:text-gray-500 md:hover:text-gray-900 md:hover:bg-gray-100'
           }`}
         onClick={(e) => { e.preventDefault(); onSave(); }}
-        disabled={isSaving || !vaultPassword}
+        disabled={isSaving || !hasActiveSession}
       >
         <span className="md:hidden whitespace-nowrap">{isSaved ? t('editor.saved') : t('editor.save')}</span>
         <Save className="w-4 h-4 md:w-3.5 md:h-3.5 hidden md:block shrink-0" />

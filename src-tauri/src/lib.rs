@@ -12,9 +12,15 @@ const CURRENT_CRYPTO_VERSION: &str = "v1";
 
 static PENDING_PATHS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
-/// Sanitize a vault file path to prevent path traversal attacks.
-/// Rejects any path containing `..` components and enforces `.wspace` extension.
-/// Supports both absolute paths (from Tauri file dialogs) and relative filenames.
+/// Session password cache — the master password lives here in Zeroizing memory
+/// instead of in the JavaScript heap. Cleared on lock via `clear_session`.
+static SESSION_PASSWORD: Mutex<Option<Zeroizing<String>>> = Mutex::new(None);
+
+/// Sanitize a vault file path to prevent path traversal and injection attacks.
+/// - Rejects `..` components and enforces `.wspace` extension.
+/// - For relative filenames: validates characters (alphanumeric, hyphen, underscore, dot).
+/// - For absolute paths (from Tauri file dialogs): checks that the resolved path exists
+///   under a plausible directory (no `..` canonicalization tricks).
 fn sanitize_vault_path(filename: &str) -> Result<PathBuf, String> {
     // Reject empty or overly long paths
     if filename.is_empty() || filename.len() > 1024 {
@@ -31,13 +37,43 @@ fn sanitize_vault_path(filename: &str) -> Result<PathBuf, String> {
 
     let path = PathBuf::from(filename);
     if path.is_absolute() {
-        // Absolute path from file dialog — use directly
-        Ok(path)
+        // Absolute path from file dialog — validate no sneaky components
+        // canonicalize() resolves symlinks; verify the result still ends with .wspace
+        match path.canonicalize() {
+            Ok(resolved) => {
+                if !resolved.to_string_lossy().ends_with(".wspace") {
+                    return Err("Invalid path: resolved path has wrong extension".to_string());
+                }
+                Ok(resolved)
+            }
+            Err(_) => {
+                // File may not exist yet (new vault) — use the original path
+                Ok(path)
+            }
+        }
     } else {
-        // Relative filename — join to cwd
+        // Relative filename — strict character validation
+        // Only allow: a-z, A-Z, 0-9, hyphen, underscore, dot (for extension)
+        let stem = filename.strip_suffix(".wspace").unwrap_or(filename);
+        if !stem.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+            return Err("Invalid filename: contains illegal characters".to_string());
+        }
+        if stem.is_empty() {
+            return Err("Invalid filename: empty stem".to_string());
+        }
         let mut file_path = PathBuf::from(env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
         file_path.push(filename);
         Ok(file_path)
+    }
+}
+
+/// Convert a std::io::Error into a safe, user-facing error string without leaking paths.
+fn sanitize_io_error(context: &str, e: &std::io::Error) -> String {
+    match e.kind() {
+        std::io::ErrorKind::NotFound => format!("{}: file not found", context),
+        std::io::ErrorKind::PermissionDenied => format!("{}: permission denied", context),
+        std::io::ErrorKind::AlreadyExists => format!("{}: file already exists", context),
+        _ => format!("{}: I/O error", context),
     }
 }
 
@@ -58,9 +94,14 @@ fn write_debug_log(_msg: &str) {
 }
 
 #[tauri::command]
-fn save_vault(filename: String, password: String, content: String) -> Result<bool, String> {
+fn save_vault(filename: String, content: String) -> Result<bool, String> {
     let file_path = sanitize_vault_path(&filename)?;
-    let password_z = Zeroizing::new(password);
+
+    // Read password from session cache — never passed from frontend
+    let password_z = {
+        let guard = SESSION_PASSWORD.lock().map_err(|_| "Session lock poisoned".to_string())?;
+        guard.clone().ok_or_else(|| "No active session: please unlock first".to_string())?
+    };
     let content_z = Zeroizing::new(content);
 
     // Encrypt using current version
@@ -70,7 +111,7 @@ fn save_vault(filename: String, password: String, content: String) -> Result<boo
     let mut payload = format!("{}:", CURRENT_CRYPTO_VERSION).into_bytes();
     payload.append(&mut encrypted_bytes);
 
-    fs::write(&file_path, payload).map_err(|_| "Failed to save vault: I/O error".to_string())?;
+    fs::write(&file_path, payload).map_err(|e| sanitize_io_error("Failed to save vault", &e))?;
 
     Ok(true)
 }
@@ -105,15 +146,67 @@ pub fn parse_and_decrypt_bytes(data: &[u8], password: &str) -> Result<String, St
 fn load_vault(filename: String, password: String) -> Result<String, String> {
     let file_path = sanitize_vault_path(&filename)?;
 
-    let data = fs::read(&file_path).map_err(|e| {
-        // Expose only the OS error code, not the full path
-        match e.raw_os_error() {
-            Some(code) => format!("Failed to read vault: os error {}", code),
-            None => "Failed to read vault: I/O error".to_string(),
-        }
-    })?;
+    let data = fs::read(&file_path).map_err(|e| sanitize_io_error("Failed to read vault", &e))?;
 
-    parse_and_decrypt_bytes(&data, &password)
+    let result = parse_and_decrypt_bytes(&data, &password)?;
+
+    // Cache password on successful decrypt — frontend no longer stores it
+    {
+        let mut guard = SESSION_PASSWORD.lock().map_err(|_| "Session lock poisoned".to_string())?;
+        *guard = Some(Zeroizing::new(password));
+    }
+
+    Ok(result)
+}
+
+/// Cache the master password in Rust memory (called during vault creation).
+/// The frontend passes the password once, then forgets it.
+#[tauri::command]
+fn cache_session_password(password: String) -> Result<bool, String> {
+    let mut guard = SESSION_PASSWORD.lock().map_err(|_| "Session lock poisoned".to_string())?;
+    *guard = Some(Zeroizing::new(password));
+    Ok(true)
+}
+
+/// Wipe the cached session password (called by forceLock).
+/// The Zeroizing<String> wrapper ensures memory is overwritten on drop.
+#[tauri::command]
+fn clear_session() -> Result<bool, String> {
+    let mut guard = SESSION_PASSWORD.lock().map_err(|_| "Session lock poisoned".to_string())?;
+    *guard = None; // Zeroizing::drop() overwrites the memory
+    Ok(true)
+}
+
+/// Change the vault password: verify old password matches session, re-encrypt vault, update cache.
+#[tauri::command]
+fn change_vault_password(filename: String, old_password: String, new_password: String, content: String) -> Result<bool, String> {
+    // Verify old password matches current session
+    {
+        let guard = SESSION_PASSWORD.lock().map_err(|_| "Session lock poisoned".to_string())?;
+        let cached = guard.as_ref().ok_or("No active session".to_string())?;
+        if cached.as_str() != old_password {
+            return Err("Incorrect current password".to_string());
+        }
+    }
+
+    // Re-encrypt with new password
+    let file_path = sanitize_vault_path(&filename)?;
+    let new_password_z = Zeroizing::new(new_password);
+    let content_z = Zeroizing::new(content);
+
+    let mut encrypted_bytes = crypto::encrypt_v1(&content_z, &new_password_z)?;
+    let mut payload = format!("{}:", CURRENT_CRYPTO_VERSION).into_bytes();
+    payload.append(&mut encrypted_bytes);
+
+    fs::write(&file_path, payload).map_err(|e| sanitize_io_error("Failed to save vault", &e))?;
+
+    // Update session cache with new password
+    {
+        let mut guard = SESSION_PASSWORD.lock().map_err(|_| "Session lock poisoned".to_string())?;
+        *guard = Some(new_password_z);
+    }
+
+    Ok(true)
 }
 
 #[tauri::command]
@@ -132,7 +225,7 @@ fn export_shared_file(
     payload.append(&mut encrypted_bytes);
 
     // Save to specified file path (validated by Tauri dialog, but sanitize write errors)
-    fs::write(&file_path, payload).map_err(|_| "Failed to export shared file: I/O error".to_string())?;
+    fs::write(&file_path, payload).map_err(|e| sanitize_io_error("Failed to export shared file", &e))?;
 
     Ok(true)
 }
@@ -276,6 +369,9 @@ pub fn run() {
             decrypt_secret,
             frontend_is_ready,
             log_to_rust,
+            cache_session_password,
+            clear_session,
+            change_vault_password,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

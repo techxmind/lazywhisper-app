@@ -29,7 +29,8 @@ export interface VaultDocument {
 function App() {
   const { t, i18n } = useTranslation();
   const [isLocked, setIsLocked] = useState(true);
-  const [vaultPassword, setVaultPassword] = useState("");
+  // HIGH-1 Fix: Password no longer stored in React state. Lives in Rust SESSION_PASSWORD cache.
+  const [hasActiveSession, setHasActiveSession] = useState(false);
   const [documents, setDocuments] = useState<VaultDocument[]>([]);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   
@@ -130,7 +131,7 @@ function App() {
 
     // A ref helper to avoid relying on outdated closures
     async function handleExternalWspaceOpen(path: string) {
-      const { isLocked, hasUnsaved, vaultPath, vaultPassword, documents } = autoLockRef.current;
+      const { isLocked, hasUnsaved, vaultPath, documents } = autoLockRef.current;
       
       if (path === vaultPath) return;
 
@@ -145,7 +146,6 @@ function App() {
             try {
               await invoke('save_vault', {
                 filename: vaultPath,
-                password: vaultPassword,
                 content: JSON.stringify(documents)
               });
               setUnsavedDocIds(new Set());
@@ -292,21 +292,19 @@ function App() {
     isLocked: boolean,
     min: number,
     hasUnsaved: boolean,
-    vaultPassword: string,
     vaultPath: string,
     documents: VaultDocument[]
   }>({
     isLocked,
     min: autoLockMin,
     hasUnsaved: hasUnsavedChanges,
-    vaultPassword,
     vaultPath,
     documents
   });
 
   useEffect(() => {
-    autoLockRef.current = { isLocked, min: autoLockMin, hasUnsaved: hasUnsavedChanges, vaultPassword, vaultPath, documents };
-  }, [isLocked, autoLockMin, hasUnsavedChanges, vaultPassword, vaultPath, documents]);
+    autoLockRef.current = { isLocked, min: autoLockMin, hasUnsaved: hasUnsavedChanges, vaultPath, documents };
+  }, [isLocked, autoLockMin, hasUnsavedChanges, vaultPath, documents]);
 
   const handleUnlock = async (password: string) => {
     try {
@@ -338,7 +336,8 @@ function App() {
 
       setDocuments(parsedDocs);
       setActiveDocId(parsedDocs[0].id);
-      setVaultPassword(password);
+      // Password cached in Rust by load_vault — no frontend storage
+      setHasActiveSession(true);
       setUnsavedDocIds(new Set());
       setIsLocked(false);
       setUnlockError("");
@@ -350,7 +349,9 @@ function App() {
         const initialDocs = [{ id: Date.now().toString(), title: t('sidebar.untitled'), content: '' }];
         setDocuments(initialDocs);
         setActiveDocId(initialDocs[0].id);
-        setVaultPassword(password);
+        // Cache password for the new-vault-via-file-not-found path
+        await invoke('cache_session_password', { password });
+        setHasActiveSession(true);
         setIsLocked(false);
         setUnlockError("");
         return { success: true };
@@ -366,15 +367,16 @@ function App() {
     try {
       const initialDocs = [{ id: Date.now().toString(), title: t('sidebar.untitled'), content: '' }];
 
+      await invoke('cache_session_password', { password });
+
       await invoke('save_vault', {
         filename: vaultPath,
-        password,
         content: JSON.stringify(initialDocs)
       });
 
       setDocuments(initialDocs);
       setActiveDocId(initialDocs[0].id);
-      setVaultPassword(password);
+      setHasActiveSession(true);
       setUnsavedDocIds(new Set());
       setIsLocked(false);
       setUnlockError("");
@@ -387,11 +389,10 @@ function App() {
     }
   };
 
-  const saveCurrentVault = async (targetPassword = vaultPassword, targetDocuments = documents, targetPath = vaultPath) => {
+  const saveCurrentVault = async (targetDocuments = documents, targetPath = vaultPath) => {
     try {
       await invoke('save_vault', {
         filename: targetPath,
-        password: targetPassword,
         content: JSON.stringify(targetDocuments)
       });
       setUnsavedDocIds(new Set());
@@ -403,11 +404,11 @@ function App() {
   };
 
   const executeGlobalSave = async () => {
-    const { isLocked, vaultPath, vaultPassword, documents } = autoLockRef.current;
-    if (isLocked || !vaultPath || !vaultPassword) return false;
+    const { isLocked, vaultPath, documents } = autoLockRef.current;
+    if (isLocked || !vaultPath) return false;
 
     setIsSaving(true);
-    const success = await saveCurrentVault(vaultPassword, documents, vaultPath);
+    const success = await saveCurrentVault(documents, vaultPath);
     setIsSaving(false);
     if (success) {
       setLastSavedTimestamp(Date.now());
@@ -449,7 +450,9 @@ function App() {
     // Layer 2: Global State Kill Switch — wipe all sensitive React state
     setIsSettingsOpen(false);
     
-    setVaultPassword("");
+    // Wipe Rust session password cache
+    invoke('clear_session').catch(() => {});
+    setHasActiveSession(false);
     setDocuments([]);
     setActiveDocId(null);
     setSessionKeys({});
@@ -564,14 +567,13 @@ function App() {
   const handleChangePassword = async (oldPassword: string, newPassword: string) => {
     if (autoLockRef.current.isLocked) throw new Error('Security Error: App is locked');
     
-    if (oldPassword !== vaultPassword) {
-      throw new Error('Incorrect current password.');
-    }
-
-    const success = await saveCurrentVault(newPassword, documents, vaultPath);
-    if (!success) throw new Error('Failed to update space data.');
-
-    setVaultPassword(newPassword);
+    // Delegate password verification and re-encryption to Rust
+    await invoke('change_vault_password', {
+      filename: vaultPath,
+      oldPassword,
+      newPassword,
+      content: JSON.stringify(documents)
+    });
   };
 
   const handleUpdateDocHash = (id: string, hash: string) => {
@@ -669,7 +671,7 @@ function App() {
                 <ZenEditor 
                   activeDoc={activeDoc}
                   documents={documents}
-                  vaultPassword={vaultPassword}
+                  hasActiveSession={hasActiveSession}
                   sessionWhisperKey={sessionKeys[activeDoc.id] || null}
                   onSetSessionWhisperKey={(key) => handleSetSessionKey(activeDoc.id, key)}
                   onUpdateDocHash={handleUpdateDocHash}

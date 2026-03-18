@@ -95,10 +95,12 @@ pub fn decrypt_v1(data: &[u8], password: &Zeroizing<String>) -> Result<Zeroizing
         .map_err(|_| "Decryption failed: Incorrect password or corrupted data".to_string())?;
 
     // 5. Convert to String — consume Vec directly, no .clone()
+    //    On failure, FromUtf8Error owns the original bytes — reclaim and zeroize them.
     let plaintext = String::from_utf8(plaintext_bytes)
-        .map_err(|mut e| {
-            // Zeroize the failed bytes before dropping
-            e.as_bytes().to_vec().zeroize();
+        .map_err(|e| {
+            // Reclaim the original bytes from the error (no extra copy)
+            let mut failed_bytes = e.into_bytes();
+            failed_bytes.zeroize();
             "Invalid UTF-8 sequence".to_string()
         })?;
 
