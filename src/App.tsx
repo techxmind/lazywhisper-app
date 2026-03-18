@@ -48,6 +48,37 @@ function App() {
   const [lastSavedTimestamp, setLastSavedTimestamp] = useState(Date.now());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  // iOS Keyboard Safeshield
+  useEffect(() => {
+    const applyViewportHeight = () => {
+      const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      document.documentElement.style.setProperty('--app-height', `${vh}px`);
+      // Forcefully correct any iOS background wrapper panning
+      window.scrollTo(0, 0); 
+    };
+
+    const blockDocumentScroll = () => {
+      if (window.scrollY > 0 || window.scrollX > 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+
+    window.visualViewport?.addEventListener('resize', applyViewportHeight);
+    window.addEventListener('resize', applyViewportHeight);
+    window.addEventListener('focusin', applyViewportHeight);
+    window.addEventListener('scroll', blockDocumentScroll, { passive: false });
+
+    // Init
+    applyViewportHeight();
+
+    return () => {
+      window.visualViewport?.removeEventListener('resize', applyViewportHeight);
+      window.removeEventListener('resize', applyViewportHeight);
+      window.removeEventListener('focusin', applyViewportHeight);
+      window.removeEventListener('scroll', blockDocumentScroll);
+    };
+  }, []);
+
   useEffect(() => {
     const updateWindowTitle = async () => {
       try {
@@ -540,7 +571,10 @@ function App() {
           error={unlockError}
         />
       ) : (
-        <div className="flex h-screen w-full bg-white dark:bg-zinc-950 overflow-hidden">
+        <div 
+          className="flex w-full bg-white dark:bg-zinc-950 overflow-hidden" 
+          style={{ height: 'var(--app-height, 100dvh)' }}
+        >
           {/* 移动端毛玻璃遮罩 */}
           {isMobileMenuOpen && (
             <div 
@@ -562,24 +596,35 @@ function App() {
           />
           
           <main className="flex-1 flex flex-col h-full relative overflow-hidden bg-white dark:bg-zinc-950">
-            {/* 移动端顶部 Header */}
-            <header className="md:hidden h-14 border-b border-gray-200 dark:border-zinc-800 flex items-center px-4 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md z-10 shrink-0">
-              <button 
-                type="button" 
-                onClick={() => setIsMobileMenuOpen(true)} 
-                className="p-2 -ml-2 text-gray-500 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors"
-                aria-label="Open Menu"
-              >
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-              <span className="ml-2 font-medium text-gray-800 dark:text-zinc-200">
-                {t('sidebar.brand') || 'LazyWhisper'}
-              </span>
+            {/* 移动端顶部 Header (Native Look) */}
+            <header className="md:hidden pt-[max(env(safe-area-inset-top),1rem)] border-b border-zinc-200/50 dark:border-zinc-800/50 flex flex-col bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md z-10 shrink-0">
+              <div className="h-14 px-2 flex items-center justify-between">
+                <div className="flex items-center w-16">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsMobileMenuOpen(true)} 
+                    className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-500 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors"
+                    aria-label="Open Menu"
+                  >
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                  </button>
+                </div>
+                
+                <div className="flex-1 flex justify-center">
+                  <span className="font-semibold text-base text-zinc-900 dark:text-zinc-100">
+                    {t('sidebar.brand') || 'LazyWhisper'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-end w-16" id="mobile-header-actions">
+                  {/* ZenEditor buttons will render here via React Portal */}
+                </div>
+              </div>
             </header>
 
-            <div className="flex-1 w-full flex flex-col items-center overflow-y-auto pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+            <div className="flex-1 w-full flex flex-col items-center overflow-y-auto overscroll-y-contain pb-[env(safe-area-inset-bottom)]">
               {activeDoc ? (
                 <ZenEditor 
                   activeDoc={activeDoc}

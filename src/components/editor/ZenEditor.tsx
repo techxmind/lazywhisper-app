@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Share, Save, Bold, Italic, Lock, Highlighter, Palette, Image as ImageIcon, AlertCircle } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { hashKey } from '../../utils/crypto';
@@ -13,6 +14,11 @@ import TextStyle from '@tiptap/extension-text-style';
 import Highlight from '@tiptap/extension-highlight';
 import Image from '@tiptap/extension-image';
 import { WhisperNode } from '../../core/tiptap/WhisperExtension';
+
+function formatTime(timestamp: number): string {
+  if (!timestamp) return '';
+  return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
 interface ZenEditorProps {
   activeDoc: VaultDocument;
   documents: VaultDocument[];
@@ -30,6 +36,17 @@ interface ZenEditorProps {
 
 export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhisperKey, onSetSessionWhisperKey, onUpdateDocHash, onContentChange, onSave, hasUnsavedChanges, isSaving, isSaved, lastSavedTimestamp }: ZenEditorProps) {
   const { t, i18n } = useTranslation();
+  
+  const [mobileHeaderNode, setMobileHeaderNode] = useState<Element | null>(null);
+
+  useEffect(() => {
+    // Attempt to grab the mobile header actions container created in App.tsx
+    const node = document.getElementById('mobile-header-actions');
+    if (node) {
+      setMobileHeaderNode(node);
+    }
+  }, []);
+
   const baselineContentRef = useRef<string>('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentCoverText, setCurrentCoverText] = useState('');
@@ -158,6 +175,9 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
 
         if (isWhisper && whisperAttrs) {
           event.preventDefault();
+          event.stopPropagation();
+          window.getSelection()?.removeAllRanges();
+          
           // Just extract data, do NOT check session keys within this stale closure scope
           setActiveRevealData({
             coverText: whisperAttrs.coverText,
@@ -472,37 +492,77 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
     setRevealNewerVersion(false);
   };
 
-  return (
-    <div className="relative w-full max-w-[800px] mx-auto px-8 py-12 sm:px-16 sm:py-24 prose prose-slate max-w-none focus:outline-none [&_.ProseMirror]:outline-none">
+  const ActionButtons = () => (
+    <>
+      <button
+        type="button"
+        className="flex items-center gap-1.5 md:text-xs text-sm font-medium text-blue-500 hover:text-blue-600 md:text-gray-500 md:hover:text-gray-900 cursor-pointer transition-colors px-2 py-2 min-h-[44px] md:min-h-0 md:px-0 md:py-0"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsExportModalOpen(true);
+        }}
+      >
+        <Share className="w-4 h-4 md:w-3.5 md:h-3.5" />
+        <span className="hidden md:inline">{t('export.button')}</span>
+      </button>
+      <button
+        type="button"
+        className={`flex items-center gap-1.5 md:text-xs text-sm font-medium cursor-pointer transition-colors px-3 py-2 min-h-[44px] md:min-h-0 md:px-3 md:py-1.5 rounded-md disabled:opacity-50 ${
+          hasUnsavedChanges 
+            ? 'text-blue-600 md:bg-gray-800 md:text-white md:shadow-sm md:hover:bg-gray-900' 
+            : 'text-gray-400 md:text-gray-500 md:hover:text-gray-900 md:hover:bg-gray-100'
+        }`}
+        onClick={(e) => { e.preventDefault(); onSave(); }}
+        disabled={isSaving || !vaultPassword}
+      >
+        <span className="md:hidden">{isSaved ? t('editor.saved') : t('editor.save')}</span>
+        <Save className="w-4 h-4 md:w-3.5 md:h-3.5 hidden md:block" />
+        <span className="hidden md:inline">{isSaved ? t('editor.saved') : t('editor.save')}</span>
+      </button>
+    </>
+  );
 
-      {/* 保存金库按钮 */}
-      <div className="absolute top-6 right-6 sm:top-10 sm:right-10 z-10 flex items-center gap-4">
-        <button
-          type="button"
-          className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-900 cursor-pointer transition-colors"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsExportModalOpen(true);
-          }}
-        >
-          <Share className="w-3.5 h-3.5" />
-          {t('export.button')}
-        </button>
-        <button
-          type="button"
-          className={`flex items-center gap-1.5 text-xs font-medium cursor-pointer transition-colors px-3 py-1.5 rounded-md disabled:opacity-50 ${hasUnsavedChanges ? 'bg-gray-800 text-white shadow-sm hover:bg-gray-900' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
-          onClick={(e) => { e.preventDefault(); onSave(); }}
-          disabled={isSaving || !vaultPassword}
-        >
-          <Save className="w-3.5 h-3.5" />
-          {isSaved ? t('editor.saved') : t('editor.save')}
-        </button>
+  return (
+    <div className="relative w-full px-0 py-0 md:max-w-[800px] md:mx-auto md:px-8 md:py-12 sm:px-16 sm:py-24 prose prose-slate max-w-none focus:outline-none [&_.ProseMirror]:outline-none flex flex-col h-full bg-white dark:bg-zinc-950">
+
+      {/* 桌面端定位在右上边距外；移动端通过 Portal 渲染到 Header */}
+      <div className="hidden md:flex z-10 items-center justify-end gap-2 md:gap-4 w-full md:w-auto md:absolute md:top-10 md:right-10 pt-2 md:pt-0">
+        <ActionButtons />
       </div>
+      
+      {/* 移动端通过 React Portal 将按钮传送到顶部 Header */}
+      {mobileHeaderNode && createPortal(
+        <div className="flex items-center justify-end gap-1">
+          <ActionButtons />
+        </div>,
+        mobileHeaderNode
+      )}
 
       {/* 必须先判断 editor 是否存在，再渲染 BubbleMenu */}
       {editor && (
-        <BubbleMenu editor={editor} tippyOptions={{ duration: 100 }} className="flex items-center p-1 space-x-1 bg-white border border-gray-200 shadow-md rounded-lg relative">
+        <BubbleMenu 
+          editor={editor} 
+          tippyOptions={{ duration: 100 }} 
+          className="flex items-center p-1 space-x-1 bg-white border border-gray-200 shadow-md rounded-lg relative"
+          shouldShow={({ state, from, to }) => {
+            if (isRevealModalOpen) return false;
+            
+            // Allow Tiptap state checking
+            const { doc, selection } = state;
+            const { empty } = selection;
+            if (empty) return false;
+            
+            const text = doc.textBetween(from, to, ' ');
+            if (text.trim() === '') return false;
+            
+            // Extra strictly check DOM selection
+            const domSelection = window.getSelection();
+            if (!domSelection || domSelection.isCollapsed || domSelection.toString().trim() === '') return false;
+            
+            return true;
+          }}
+        >
           <button
             onClick={() => editor.chain().focus().toggleBold().run()}
             className={`p-1.5 rounded-md transition-colors ${editor.isActive('bold') ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`}
@@ -596,12 +656,24 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
         </BubbleMenu>
       )}
 
-      <EditorContent editor={editor} />
+      {/* Editor Content Area */}
+      <div className="w-full relative flex-1 h-full md:min-h-[500px] flex flex-col mt-4 md:mt-0 px-4 md:px-0 bg-transparent">
+        <EditorContent 
+          editor={editor} 
+          className="w-full flex-1 focus:outline-none border-none outline-none ring-0 h-full" 
+          onClick={() => editor?.commands.focus()} 
+        />
+        
+        {/* Update timestamp */}
+        <div className="text-right text-xs md:text-[10px] text-gray-400 mt-12 md:mt-8 pb-12 opacity-50 select-none">
+          {t('editor.lastUpdate')} {formatTime(lastSavedTimestamp)}
+        </div>
+      </div>
 
       {/* 密语封存弹窗 Seal Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
-          <div className="bg-white border border-gray-200 rounded-md w-[480px] p-6 flex flex-col gap-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20">
+          <div className="bg-white border border-gray-200 rounded-md w-full max-w-[480px] p-6 flex flex-col gap-6">
             <div>
               <h3 className="text-xl font-semibold text-gray-800 mb-6">{t('modal.title')}</h3>
               <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 mb-6 flex flex-col gap-1">
@@ -622,7 +694,7 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
                       spellCheck="false"
                       autoCorrect="off"
                       autoCapitalize="off"
-                      className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
+                      className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base md:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
                     />
                     {!activeDoc.whisperKeyHash ? (
                       <p className="text-xs text-gray-400 mt-1">{t('whisper.setKey')}</p>
@@ -639,7 +711,7 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
                       spellCheck="false"
                       autoCorrect="off"
                       autoCapitalize="off"
-                      className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
+                      className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base md:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
                     />
                   )}
                   {sealError && <span className="text-xs text-red-500 mt-1">{sealError}</span>}
@@ -655,7 +727,7 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
                   spellCheck="false"
                   autoCorrect="off"
                   autoCapitalize="off"
-                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow resize-none"
+                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base md:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow resize-none"
                   rows={4}
                   autoFocus
                 />
@@ -683,8 +755,8 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
 
       {/* 导出分享弹窗 Export Modal */}
       {isExportModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
-          <div className="bg-white border border-gray-200 rounded-md w-[400px] p-6 flex flex-col gap-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20">
+          <div className="bg-white border border-gray-200 rounded-md w-full max-w-[400px] p-6 flex flex-col gap-6 shadow-xl">
             <div>
               <h3 className="text-lg font-light text-gray-900">{t('export.title')}</h3>
               {exportSuccess && (
@@ -718,7 +790,7 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
                 spellCheck="false"
                 autoCorrect="off"
                 autoCapitalize="off"
-                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow"
+                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base md:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && exportPassword.trim()) {
@@ -754,8 +826,8 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
 
       {/* 密语阅读弹窗 Reveal Modal */}
       {isRevealModalOpen && activeRevealData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/5 backdrop-blur-sm">
-          <div className="bg-white border border-gray-200 w-[500px] rounded p-8 flex flex-col gap-6 font-sans">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/5 backdrop-blur-sm">
+          <div className="bg-white border border-gray-200 w-full max-w-[500px] rounded p-8 flex flex-col gap-6 font-sans">
             <div>
               <h3 className="text-xl font-semibold text-gray-800 mb-6">{t('reveal.title')}</h3>
             </div>
@@ -780,7 +852,7 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
                   spellCheck="false"
                   autoCorrect="off"
                   autoCapitalize="off"
-                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest disabled:opacity-50 disabled:bg-gray-50"
+                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base md:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest disabled:opacity-50 disabled:bg-gray-50"
                   autoFocus
                   disabled={!!revealLockoutEndTime || revealNewerVersion}
                   onKeyDown={(e) => {

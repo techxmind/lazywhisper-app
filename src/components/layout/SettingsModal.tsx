@@ -101,8 +101,8 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
-      <div className="bg-white border border-gray-200 rounded-md w-[480px] p-6 flex flex-col gap-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20">
+      <div className="bg-white border border-gray-200 rounded-md w-full max-w-[480px] p-6 flex flex-col gap-6">
         <div>
           <h3 className="text-lg font-light text-gray-900">{t('settings.title')}</h3>
         </div>
@@ -114,10 +114,10 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
               type="text"
               readOnly
               value={currentVaultPath}
-              className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-600 outline-none"
+              className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base md:text-sm text-gray-600 outline-none"
             />
             <button
-              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-lg text-sm transition-colors whitespace-nowrap font-medium"
+              className="bg-gray-100 min-h-[44px] hover:bg-gray-200 text-gray-700 px-4 py-3 md:py-2.5 rounded-lg text-sm transition-colors whitespace-nowrap font-medium"
               onClick={handleChangeLocation}
             >
               {t('settings.changeBtn')}
@@ -132,7 +132,7 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
         <div>
           <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2 block">{t('settings.security')}</label>
           <button
-            className="w-full bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm"
+            className="w-full min-h-[44px] bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium py-3 md:py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm"
             onClick={() => setIsPasswordModalOpen(true)}
           >
             <Key className="w-4 h-4 text-gray-500" /> {t('settings.modifyPassword')}
@@ -144,11 +144,11 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
           <div className="divide-y divide-gray-100 border-t border-gray-100">
             <div className="flex items-center justify-between py-4">
               <label className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-0">{t('settings.autoLock')}</label>
-              <div className="relative w-48">
+              <div className="relative w-40 md:w-48">
                 <select
                   value={autoLockMin}
                   onChange={(e) => onAutoLockChange(Number(e.target.value))}
-                  className="appearance-none bg-white border border-gray-200 rounded-lg py-2.5 px-3 text-sm text-gray-700 w-full focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                  className="appearance-none min-h-[44px] bg-white border border-gray-200 rounded-lg py-3 md:py-2.5 px-3 text-base md:text-sm text-gray-700 w-full focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                 >
                   <option value={0}>{t('settings.never')}</option>
                   <option value={1}>{t('settings.min1')}</option>
@@ -163,14 +163,14 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
 
             <div className="flex items-center justify-between py-4">
               <label className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-0">{t('settings.language')}</label>
-              <div className="relative w-48">
+              <div className="relative w-40 md:w-48">
                 <select
                   value={i18n.language}
                   onChange={(e) => {
                     i18n.changeLanguage(e.target.value);
                     localStorage.setItem('lazywhisper-lang', e.target.value);
                   }}
-                  className="appearance-none bg-white border border-gray-200 rounded-lg py-2.5 px-3 text-sm text-gray-700 w-full focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                  className="appearance-none min-h-[44px] bg-white border border-gray-200 rounded-lg py-3 md:py-2.5 px-3 text-base md:text-sm text-gray-700 w-full focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                 >
                   <option value="en">{t('settings.langEn')}</option>
                   <option value="zh">{t('settings.langZh')}</option>
@@ -183,11 +183,11 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
 
             <div className="flex items-center justify-between py-4">
               <label className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-0">{t('settings.theme')}</label>
-              <div className="relative w-48">
+              <div className="relative w-40 md:w-48">
                 <select
                   value={theme}
                   onChange={(e) => setTheme(e.target.value as 'system' | 'light' | 'dark')}
-                  className="appearance-none bg-white border border-gray-200 rounded-lg py-2.5 px-3 text-sm text-gray-700 w-full focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                  className="appearance-none min-h-[44px] bg-white border border-gray-200 rounded-lg py-3 md:py-2.5 px-3 text-base md:text-sm text-gray-700 w-full focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                 >
                   <option value="system">{t('settings.themeSystem')}</option>
                   <option value="light">{t('settings.themeLight')}</option>
@@ -203,7 +203,7 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
 
         <div className="flex justify-end border-t border-gray-100 mt-6 pt-4">
           <button
-            className="bg-gray-800 hover:bg-gray-900 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"
+            className="bg-gray-800 min-h-[44px] hover:bg-gray-900 text-white px-6 py-3 md:py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"
             onClick={onClose}
           >
             {t('settings.doneBtn')}
@@ -218,8 +218,8 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
 
       {/* Password Sub-Modal */}
       {isPasswordModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-sm">
-          <div className="bg-white border border-gray-200 rounded-md w-[400px] p-6 flex flex-col gap-6">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm">
+          <div className="bg-white border border-gray-200 rounded-md w-full max-w-[400px] p-6 flex flex-col gap-6">
             <div>
               <h3 className="text-lg font-light text-gray-900">{t('settings.changePwdTitle')}</h3>
               <p className="text-xs text-amber-600 mt-1">{t('settings.changePwdNote')}</p>
@@ -234,7 +234,7 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
                 spellCheck="false"
                 autoCorrect="off"
                 autoCapitalize="off"
-                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
+                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base md:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
                 autoFocus
               />
               <input
@@ -245,7 +245,7 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
                 spellCheck="false"
                 autoCorrect="off"
                 autoCapitalize="off"
-                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
+                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base md:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
               />
               <input
                 type="password"
@@ -255,7 +255,7 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
                 spellCheck="false"
                 autoCorrect="off"
                 autoCapitalize="off"
-                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
+                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base md:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleUpdatePassword();
                 }}

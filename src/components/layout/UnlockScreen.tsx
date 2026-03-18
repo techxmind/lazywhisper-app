@@ -108,7 +108,7 @@ export function UnlockScreen({ onUnlock, onCreate, isVaultExists, error }: Unloc
             placeholder={t('unlock.placeholder')}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow text-center tracking-widest disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+            className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base md:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow text-center tracking-widest disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
             autoFocus
             disabled={!!lockoutEndTime || newerVersionError}
           />
@@ -118,7 +118,7 @@ export function UnlockScreen({ onUnlock, onCreate, isVaultExists, error }: Unloc
               placeholder={t('unlock.confirmPlaceholder')}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow text-center tracking-widest mt-1"
+              className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base md:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow text-center tracking-widest mt-1"
             />
           )}
 
@@ -142,7 +142,7 @@ export function UnlockScreen({ onUnlock, onCreate, isVaultExists, error }: Unloc
 
           <button
             type="submit"
-            className="mt-6 w-full bg-gray-800 hover:bg-gray-900 text-white font-medium py-2.5 rounded-lg transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:ring-offset-1 disabled:bg-gray-100 disabled:text-gray-400 disabled:border disabled:border-gray-200 disabled:cursor-not-allowed disabled:shadow-none"
+            className="mt-6 w-full min-h-[44px] md:min-h-0 bg-gray-800 hover:bg-gray-900 text-white font-medium py-3 md:py-2.5 rounded-lg transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:ring-offset-1 disabled:bg-gray-100 disabled:text-gray-400 disabled:border disabled:border-gray-200 disabled:cursor-not-allowed disabled:shadow-none"
             disabled={!!lockoutEndTime || newerVersionError}
           >
             {isVaultExists ? t('unlock.button') : t('unlock.createButton')}
