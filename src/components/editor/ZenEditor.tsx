@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Share, Save, Bold, Italic, Lock, Highlighter, Palette, Image as ImageIcon, AlertCircle, X, Copy, Check } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { hashKey } from '../../utils/crypto';
@@ -1123,87 +1124,105 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       )}
 
       {/* 密语轻量级解密浮层 Popover (Authorized State) */}
-      {activePopoverData && createPortal(
-        <div
-          className="whisper-popover-container fixed z-[9999] animate-in fade-in zoom-in-95 duration-150 ease-out"
-          style={{
-            // Try to place above, if < 200px space, place below
-            top: activePopoverData.rect.top > 200
-              ? activePopoverData.rect.top - 12
-              : activePopoverData.rect.bottom + 12,
-            left: Math.min(
-              Math.max(activePopoverData.rect.left + (activePopoverData.rect.width / 2) - 170, 16),
-              window.innerWidth - 356
-            ), // Center above target, prevent overflowing edges
-            transform: activePopoverData.rect.top > 200 ? 'translateY(-100%)' : 'none',
-          }}
-          onClick={(e) => { e.stopPropagation(); }}
-          onTouchStart={(e) => { e.stopPropagation(); }}
-          onTouchEnd={(e) => { e.stopPropagation(); }}
-          onMouseDown={(e) => { e.stopPropagation(); }}
-        >
-          {/* Arrow Caret */}
-          <div
-            className="absolute w-[14px] h-[14px] bg-white transform rotate-45 z-20"
-            style={{
-              left: Math.max(
-                16,
-                activePopoverData.rect.left - Math.max(activePopoverData.rect.left + (activePopoverData.rect.width / 2) - 170, 16) + (activePopoverData.rect.width / 2) - 7
-              ) + 'px',
-              ...(activePopoverData.rect.top > 200
-                ? { bottom: '-7px', borderRight: '1px solid rgb(243 244 246 / 0.8)', borderBottom: '1px solid rgb(243 244 246 / 0.8)' } // Pointing down
-                : { top: '-7px', borderLeft: '1px solid rgb(243 244 246 / 0.8)', borderTop: '1px solid rgb(243 244 246 / 0.8)' } // Pointing up
-              )
-            }}
-          />
-
-          <div className="bg-white border border-gray-100/80 shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-2xl p-4 md:p-6 w-[calc(100vw-32px)] md:w-[340px] max-w-[340px] max-h-64 flex flex-col gap-2 md:gap-3 relative z-10">
-            <button
-              className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-md transition-colors"
-              onClick={() => {
-                setActivePopoverData(null);
-                setPopoverCopied(false);
+      {createPortal(
+        <AnimatePresence>
+          {activePopoverData && (
+            <div
+              className="whisper-popover-container fixed z-[9999]"
+              style={{
+                top: activePopoverData.rect.top > 200
+                  ? activePopoverData.rect.top - 12
+                  : activePopoverData.rect.bottom + 12,
+                left: Math.min(
+                  Math.max(activePopoverData.rect.left + (activePopoverData.rect.width / 2) - 170, 16),
+                  window.innerWidth - 356
+                ),
+                transform: activePopoverData.rect.top > 200 ? 'translateY(-100%)' : 'none',
               }}
-              aria-label="Close"
+              onClick={(e) => { e.stopPropagation(); }}
+              onTouchStart={(e) => { e.stopPropagation(); }}
+              onTouchEnd={(e) => { e.stopPropagation(); }}
+              onMouseDown={(e) => { e.stopPropagation(); }}
             >
-              <X className="w-4 h-4" />
-            </button>
-
-            <div className="text-xs font-medium text-zinc-500 uppercase tracking-wider pr-6">
-              {activePopoverData.coverText}
-            </div>
-
-            <div className="flex-1 overflow-y-auto pr-1">
-              {isPopoverDecrypting ? (
-                <div className="flex items-center gap-2 text-sm text-zinc-400 py-2">
-                  <span className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></span>
-                  {t('reveal.decrypting') || 'Decrypting...'}
-                </div>
-              ) : popoverError ? (
-                <div className="text-sm text-red-500 py-1 bg-red-50 px-2 rounded-md border border-red-100">
-                  {popoverError}
-                </div>
-              ) : popoverDecryptedSecret ? (
-                <div className="relative group/secret">
-                  <div className="text-xl font-bold text-zinc-950 leading-relaxed break-words pr-8">
-                    {popoverDecryptedSecret}
-                  </div>
-                  <button
-                    className="absolute top-0 right-0 p-1.5 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-md transition-colors opacity-0 group-hover/secret:opacity-100 focus:opacity-100 flex items-center justify-center bg-white/50"
-                    onClick={() => {
-                      navigator.clipboard.writeText(popoverDecryptedSecret);
-                      setPopoverCopied(true);
-                      setTimeout(() => setPopoverCopied(false), 2000);
+            <motion.div
+              key="whisper-popover"
+              initial={{ opacity: 0, scale: 0.95, y: activePopoverData.rect.top > 200 ? 5 : -5 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 5 }}
+              transition={{ type: "spring", stiffness: 300, damping: 24 }}
+            >
+              {/* Arrow Caret — sits BEHIND the body card so inner half is hidden */}
+              {(() => {
+                const isDark = document.documentElement.classList.contains('dark');
+                const borderColor = isDark ? '#27272a' : '#e4e4e7';
+                return (
+                  <div
+                    className="absolute w-[14px] h-[14px] bg-white dark:bg-zinc-900 transform rotate-45"
+                    style={{
+                      zIndex: 0,
+                      left: Math.max(
+                        16,
+                        activePopoverData.rect.left - Math.max(activePopoverData.rect.left + (activePopoverData.rect.width / 2) - 170, 16) + (activePopoverData.rect.width / 2) - 7
+                      ) + 'px',
+                      ...(activePopoverData.rect.top > 200
+                        ? { bottom: '-7px', borderRight: `1px solid ${borderColor}`, borderBottom: `1px solid ${borderColor}` }
+                        : { top: '-7px', borderLeft: `1px solid ${borderColor}`, borderTop: `1px solid ${borderColor}` }
+                      )
                     }}
-                    title="Copy secret"
-                  >
-                    {popoverCopied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                  </button>
+                  />
+                );
+              })()}
+
+              <div className="bg-white dark:bg-zinc-900/95 dark:backdrop-blur-md border border-zinc-200 dark:border-zinc-800 shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.5)] rounded-2xl p-4 md:p-6 w-[calc(100vw-32px)] md:w-[340px] max-w-[340px] max-h-64 flex flex-col gap-2 md:gap-3 relative z-10">
+                <button
+                  className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
+                  onClick={() => {
+                    setActivePopoverData(null);
+                    setPopoverCopied(false);
+                  }}
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+
+                <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider pr-6">
+                  {activePopoverData.coverText}
                 </div>
-              ) : null}
+
+                <div className="flex-1 overflow-y-auto pr-1">
+                  {isPopoverDecrypting ? (
+                    <div className="flex items-center gap-2 text-sm text-zinc-400 py-2">
+                      <span className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></span>
+                      {t('reveal.decrypting') || 'Decrypting...'}
+                    </div>
+                  ) : popoverError ? (
+                    <div className="text-sm text-red-500 dark:text-red-400 py-1 bg-red-50 dark:bg-red-950/30 px-2 rounded-md border border-red-100 dark:border-red-900/50">
+                      {popoverError}
+                    </div>
+                  ) : popoverDecryptedSecret ? (
+                    <div className="relative group/secret">
+                      <div className="text-xl font-bold text-zinc-950 dark:text-zinc-100 leading-relaxed break-words pr-8">
+                        {popoverDecryptedSecret}
+                      </div>
+                      <button
+                        className="absolute top-0 right-0 p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors opacity-0 group-hover/secret:opacity-100 focus:opacity-100 flex items-center justify-center bg-white/50 dark:bg-zinc-900/50"
+                        onClick={() => {
+                          navigator.clipboard.writeText(popoverDecryptedSecret);
+                          setPopoverCopied(true);
+                          setTimeout(() => setPopoverCopied(false), 2000);
+                        }}
+                        title="Copy secret"
+                      >
+                        {popoverCopied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </motion.div>
             </div>
-          </div>
-        </div>,
+          )}
+        </AnimatePresence>,
         document.body
       )}
     </div>

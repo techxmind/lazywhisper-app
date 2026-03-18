@@ -1,7 +1,7 @@
 {
   "name": "lazywhisper",
   "private": true,
-  "version": "1.0.4",
+  "version": "1.0.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -24,6 +24,7 @@
     "@tiptap/extension-image": "^2.2.4",
     "@tiptap/extension-placeholder": "2.2.4",
     "@tiptap/extension-text-style": "^2.2.4",
+    "framer-motion": "^12.38.0",
     "i18next": "^25.8.18",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

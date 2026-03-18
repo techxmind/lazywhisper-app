@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { motion } from 'framer-motion';
 import { Plus, FileText, Trash2, Settings, Lock } from 'lucide-react';
 import { VaultDocument } from '../../App';
 
@@ -16,14 +17,18 @@ interface SidebarProps {
 
 export function Sidebar({ isMobileMenuOpen, onLock, onOpenSettings, documents, activeDocId, onDocSelect, onNewDoc, onDeleteDoc, unsavedDocIds }: SidebarProps) {
   const { t } = useTranslation();
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
   return (
-    <aside className={`
-      fixed inset-y-0 left-0 z-50 w-64 bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col h-full
-      transform transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none
-      md:relative md:translate-x-0 pt-[max(env(safe-area-inset-top),1rem)]
-      ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
-    `}>
+    <motion.aside
+      className={`
+        fixed inset-y-0 left-0 z-50 w-64 bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col h-full
+        shadow-2xl md:shadow-none md:relative pt-[max(env(safe-area-inset-top),1rem)]
+      `}
+      initial={false}
+      animate={{ x: isMobile && !isMobileMenuOpen ? '-100%' : 0 }}
+      transition={{ type: "spring", damping: 25, stiffness: 200 }}
+    >
       {/* 顶部区域 Header */}
       <div className="p-6 pb-4">
         <h1 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
@@ -94,6 +99,6 @@ export function Sidebar({ isMobileMenuOpen, onLock, onOpenSettings, documents, a
           <span>{t('sidebar.lock')}</span>
         </button>
       </div>
-    </aside>
+    </motion.aside>
   );
 }
