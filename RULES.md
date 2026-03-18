@@ -38,3 +38,11 @@
 - **局部不可编辑声明**：内嵌交互块的根节点必须明确声明 `contentEditable={false}`，将其从编辑器的输入流中剥离，防止移动端误弹键盘。
 - **事件绝对阻断**：任何挂载在内嵌块上的触发事件（Click/PointerDown），必须在第一行同时执行 `e.preventDefault()` 和 `e.stopPropagation()`，彻底切断与父级编辑器的焦点争夺。
 - **触控热区与响应声明**：非 `<button>` 或 `<a>` 的自定义点击元素，必须加上 `cursor: pointer` 以确保 iOS Safari 的 Click 引擎不掉帧，并利用 `inline-block` 与 `padding` 适度放大触控面积。
+
+## 6. Cross-Context Contamination Defense (跨上下文污染防御)
+
+在开发涉及加密隔离（如不同 Note 具有独立密钥）的富文本功能时，必须严格管控剪贴板与数据流转边界：
+
+- **基因溯源 (Origin Tracking)**：所有受加密上下文保护的自定义内嵌节点（如密语块），其数据结构中必须持久化存储 `originContextId`（如 `noteId`）。
+- **剪贴板熔断 (Clipboard Kill-Switch)**：编辑器必须实现 `handlePaste` 或底层的数据流拦截器。任何跨上下文的富文本节点粘贴（即 `originId` 不匹配），必须被强制拦截并转化为无害的普通文本提示，**绝对禁止**将异构的密文数据持久化到当前上下文中。
+- **合法流转路径**：如果用户确实需要跨上下文移动加密数据，唯一合法的途径是：在源节点解密 -> 复制明文 -> 在目标节点粘贴明文 -> 在目标节点重新发起加密流程。

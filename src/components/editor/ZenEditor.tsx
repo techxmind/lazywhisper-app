@@ -71,9 +71,8 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
 
   // Reveal State
   const [isRevealModalOpen, setIsRevealModalOpen] = useState(false);
-  const [activeRevealData, setActiveRevealData] = useState<{ coverText: string, encryptedSecret: string } | null>(null);
+  const [activeRevealData, setActiveRevealData] = useState<{ coverText: string, encryptedSecret: string, rect: DOMRect } | null>(null);
   const [revealKey, setRevealKey] = useState('');
-  const [revealedSecret, setRevealedSecret] = useState<string | null>(null);
   const [revealError, setRevealError] = useState('');
   const [revealNewerVersion, setRevealNewerVersion] = useState(false);
 
@@ -93,13 +92,13 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
 
   // Robust AutoFocus for Reveal Modal
   useEffect(() => {
-    if (isRevealModalOpen && !revealedSecret && activeRevealData) {
+    if (isRevealModalOpen && activeRevealData) {
       const timer = setTimeout(() => {
         revealModalInputRef.current?.focus();
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [isRevealModalOpen, revealedSecret, activeRevealData]);
+  }, [isRevealModalOpen, activeRevealData]);
 
   // Popover State (UX Upgrade)
   const [activePopoverData, setActivePopoverData] = useState<{ coverText: string, encryptedSecret: string, rect: DOMRect } | null>(null);
@@ -155,6 +154,7 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
       }),
     ],
     content: activeDoc.content,
+    autofocus: 'end',
     onUpdate: ({ editor: currentEditor }) => {
       const firstLineText = currentEditor.state.doc.firstChild?.textContent;
       localTitleRef.current = firstLineText ? firstLineText.trim() : t('sidebar.untitled');
@@ -198,12 +198,12 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
             const encryptedSecret = whisperSpan.getAttribute('data-secret');
 
             if (coverText && encryptedSecret) {
+              const rect = whisperSpan.getBoundingClientRect();
               if (sessionKeyRef.current) {
-                const rect = whisperSpan.getBoundingClientRect();
                 setActivePopoverData({ coverText, encryptedSecret, rect });
                 setIsRevealModalOpen(false);
               } else {
-                setActiveRevealData({ coverText, encryptedSecret });
+                setActiveRevealData({ coverText, encryptedSecret, rect });
                 setIsRevealModalOpen(true);
                 setActivePopoverData(null);
               }
@@ -224,12 +224,12 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
             const encryptedSecret = whisperSpan.getAttribute('data-secret');
 
             if (coverText && encryptedSecret) {
+              const rect = whisperSpan.getBoundingClientRect();
               if (sessionKeyRef.current) {
-                const rect = whisperSpan.getBoundingClientRect();
                 setActivePopoverData({ coverText, encryptedSecret, rect });
                 setIsRevealModalOpen(false);
               } else {
-                setActiveRevealData({ coverText, encryptedSecret });
+                setActiveRevealData({ coverText, encryptedSecret, rect });
                 setIsRevealModalOpen(true);
                 setActivePopoverData(null);
               }
@@ -248,7 +248,7 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
           return false;
         }
       },
-        handlePaste: (view, event) => {
+      handlePaste: (view, event) => {
         const items = event.clipboardData?.items;
         if (!items) return false;
 
@@ -311,19 +311,33 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
     if (editor) {
       if (activeDoc.content !== editor.getHTML()) {
         editor.commands.setContent(activeDoc.content);
-        localContentRef.current = activeDoc.content;
-        setLocalContent(activeDoc.content);
+        const normalizedHTML = editor.getHTML();
+        localContentRef.current = normalizedHTML;
+        setLocalContent(normalizedHTML);
+        baselineContentRef.current = normalizedHTML;
+      } else {
+        baselineContentRef.current = editor.getHTML();
       }
-      baselineContentRef.current = editor.getHTML();
       localTitleRef.current = activeDoc.title || t('sidebar.untitled');
+
+      // Guarantee AutoFocus always jumps to the end of the text on every Doc Swap
+      const timer = setTimeout(() => {
+        if (!editor.isDestroyed) {
+          editor.commands.focus('end');
+        }
+      }, 50);
+      return () => clearTimeout(timer);
     }
   }, [activeDoc.id, editor, activeDoc.content, activeDoc.title, t]); // rely on doc ID swap
 
   // Global UX AutoFocus for New Note creation
   useEffect(() => {
-    if (editorFocusTrigger && editorFocusTrigger > 0 && editor) {
+    if (editorFocusTrigger && editorFocusTrigger > 0 && editor && !editor.isDestroyed) {
+      // Small buffer to let React state flush the new activeDoc
       const timer = setTimeout(() => {
-        editor.commands.focus();
+        if (!editor.isDestroyed) {
+          editor.commands.focus('end');
+        }
       }, 50);
       return () => clearTimeout(timer);
     }
@@ -344,18 +358,24 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
         invoke<string>('decrypt_secret', {
           ciphertext: activeRevealData.encryptedSecret,
           key: sessionWhisperKey
-        }).then((extracted) => {
+        }).then((_extracted) => {
           setRevealKey(sessionWhisperKey);
-          setRevealedSecret(extracted);
           setRevealError('');
+          // Zero-click Instant Handoff
+          setActivePopoverData({
+            coverText: activeRevealData.coverText,
+            encryptedSecret: activeRevealData.encryptedSecret,
+            rect: activeRevealData.rect
+          });
+          setIsRevealModalOpen(false);
+          setActiveRevealData(null);
+          setRevealKey('');
         }).catch(() => {
           onSetSessionWhisperKey(null);
-          setRevealKey('');
-          setRevealedSecret(null);
+          setRevealError(t('whisper.keyIncorrect'));
         });
       } else {
         setRevealKey('');
-        setRevealedSecret(null);
       }
     }
   }, [isRevealModalOpen, activeRevealData, sessionWhisperKey]);
@@ -401,13 +421,13 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
   // Popover Dismissal (Outside Click & Lock)
   useEffect(() => {
     if (!activePopoverData) return;
-    
+
     // Auto-dismiss if lock state triggers
     if (!sessionWhisperKey) {
       setActivePopoverData(null);
       return;
     }
-    
+
     const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
       const target = e.target as HTMLElement;
       // If click is inside popover or inside a whisper node, don't close here
@@ -586,13 +606,23 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
     // Accepted password!
     if (activeRevealData.encryptedSecret) {
       try {
-        const extracted = await invoke<string>('decrypt_secret', {
+        await invoke<string>('decrypt_secret', {
           ciphertext: activeRevealData.encryptedSecret,
           key: revealKey
         });
-        setRevealedSecret(extracted);
+
+        // Zero-click Handoff
         onSetSessionWhisperKey(revealKey);
         setRevealError('');
+        setActivePopoverData({
+          coverText: activeRevealData.coverText,
+          encryptedSecret: activeRevealData.encryptedSecret,
+          rect: activeRevealData.rect
+        });
+        setIsRevealModalOpen(false);
+        setActiveRevealData(null);
+        setRevealKey('');
+        setRevealNewerVersion(false);
       } catch (err: any) {
         const errMsg = typeof err === 'string' ? err : '';
         if (errMsg.includes("ERROR_NEWER_VERSION")) {
@@ -609,7 +639,6 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
     setIsRevealModalOpen(false);
     setActiveRevealData(null);
     setRevealKey('');
-    setRevealedSecret(null);
     setRevealError('');
     setRevealNewerVersion(false);
   };
@@ -631,8 +660,8 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
       <button
         type="button"
         className={`flex items-center gap-1.5 md:text-xs text-sm font-medium cursor-pointer transition-colors px-3 py-2 min-h-[44px] md:min-h-0 md:px-3 md:py-1.5 rounded-md disabled:opacity-50 ${hasUnsavedChanges
-            ? 'text-blue-600 md:bg-gray-800 md:text-white md:shadow-sm md:hover:bg-gray-900'
-            : 'text-gray-400 md:text-gray-500 md:hover:text-gray-900 md:hover:bg-gray-100'
+          ? 'text-blue-600 md:bg-gray-800 md:text-white md:shadow-sm md:hover:bg-gray-900'
+          : 'text-gray-400 md:text-gray-500 md:hover:text-gray-900 md:hover:bg-gray-100'
           }`}
         onClick={(e) => { e.preventDefault(); onSave(); }}
         disabled={isSaving || !vaultPassword}
@@ -782,7 +811,11 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
         <EditorContent
           editor={editor}
           className="w-full flex-1 focus:outline-none border-none outline-none ring-0 h-full"
-          onClick={() => editor?.commands.focus()}
+          onClick={() => {
+            if (editor && !editor.isDestroyed) {
+              editor.commands.focus('end');
+            }
+          }}
         />
 
         {/* Update timestamp */}
@@ -954,18 +987,8 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
               <h3 className="text-xl font-semibold text-gray-800 mb-6">{t('reveal.title')}</h3>
             </div>
 
-            <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 mb-6">
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{t('modal.coverText')}</div>
-              <div className="text-sm text-gray-700">{activeRevealData.coverText}</div>
-            </div>
-
-            {revealedSecret ? (
-              <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-5">
-                <div className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-3">{t('modal.decryptedText')}</div>
-                <div className="text-base text-gray-800 leading-relaxed break-words">{revealedSecret}</div>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-4 mt-4">
+            <div className="flex flex-col gap-4 mt-4">
+              <div className="flex flex-col gap-1">
                 <input
                   ref={revealModalInputRef}
                   type="password"
@@ -983,21 +1006,24 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
                     }
                   }}
                 />
-                {revealError && !revealLockoutEndTime && !revealNewerVersion && <span className="text-xs text-red-500 px-1">{revealError}</span>}
-                {revealLockoutEndTime && remainingRevealLockout > 0 && !revealNewerVersion && (
-                  <div className="flex items-center gap-2 bg-red-50 border border-red-100 text-red-600 text-xs px-3 py-2 rounded-lg mt-1 w-full text-left">
-                    <Lock size={14} className="shrink-0" />
-                    <span>尝试次数过多，请在 {remainingRevealLockout} 秒后重试。</span>
-                  </div>
-                )}
-                {revealNewerVersion && (
-                  <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-600 text-xs px-3 py-2 rounded-lg mt-1 w-full text-left">
-                    <AlertCircle size={14} className="shrink-0" />
-                    <span>此密语由更高版本的加密算法生成，请升级软件。</span>
-                  </div>
-                )}
+                <p className="text-[13px] text-zinc-500 mt-1 px-1">
+                  口令验证通过后，在空间锁定前无需再次输入。
+                </p>
               </div>
-            )}
+              {revealError && !revealLockoutEndTime && !revealNewerVersion && <span className="text-xs text-red-500 px-1">{revealError}</span>}
+              {revealLockoutEndTime && remainingRevealLockout > 0 && !revealNewerVersion && (
+                <div className="flex items-center gap-2 bg-red-50 border border-red-100 text-red-600 text-xs px-3 py-2 rounded-lg mt-1 w-full text-left">
+                  <Lock size={14} className="shrink-0" />
+                  <span>尝试次数过多，请在 {remainingRevealLockout} 秒后重试。</span>
+                </div>
+              )}
+              {revealNewerVersion && (
+                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-600 text-xs px-3 py-2 rounded-lg mt-1 w-full text-left">
+                  <AlertCircle size={14} className="shrink-0" />
+                  <span>此密语由更高版本的加密算法生成，请升级软件。</span>
+                </div>
+              )}
+            </div>
 
             <div className="flex justify-end gap-3 mt-8">
               <button
@@ -1006,15 +1032,13 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
               >
                 {t('reveal.close')}
               </button>
-              {!revealedSecret && (
-                <button
-                  className="bg-gray-800 hover:bg-gray-900 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:ring-offset-1 disabled:bg-gray-100 disabled:text-gray-400 disabled:border disabled:border-gray-200 disabled:cursor-not-allowed disabled:shadow-none"
-                  onClick={handleRevealWhisper}
-                  disabled={!revealKey.trim() || !!revealLockoutEndTime || revealNewerVersion}
-                >
-                  {t('reveal.reveal')}
-                </button>
-              )}
+              <button
+                className="bg-gray-800 hover:bg-gray-900 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:ring-offset-1 disabled:bg-gray-100 disabled:text-gray-400 disabled:border disabled:border-gray-200 disabled:cursor-not-allowed disabled:shadow-none"
+                onClick={handleRevealWhisper}
+                disabled={!revealKey.trim() || !!revealLockoutEndTime || revealNewerVersion}
+              >
+                {t('reveal.reveal')}
+              </button>
             </div>
           </div>
         </div>
