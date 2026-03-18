@@ -14,9 +14,10 @@ interface UseAutoLockProps {
     hasUnsaved: boolean;
   }>;
   forceLock: () => void;
+  lockInProgressRef: React.MutableRefObject<boolean>;
 }
 
-export function useAutoLock({ autoLockRef, forceLock }: UseAutoLockProps) {
+export function useAutoLock({ autoLockRef, forceLock, lockInProgressRef }: UseAutoLockProps) {
   const { t } = useTranslation();
   const lastActiveTimeRef = useRef<number>(Date.now());
   const lastThrottleTimeRef = useRef<number>(0);
@@ -39,8 +40,8 @@ export function useAutoLock({ autoLockRef, forceLock }: UseAutoLockProps) {
     const interval = setInterval(async () => {
       const state = autoLockRef.current;
       
-      // If already locked or set to 'Never' (0), do nothing
-      if (state.isLocked || state.min === 0) return;
+      // If already locked, set to 'Never' (0), or another lock flow is in progress, skip
+      if (state.isLocked || state.min === 0 || lockInProgressRef.current) return;
 
       const idleTime = Date.now() - lastActiveTimeRef.current;
       const timeoutMs = state.min * 60 * 1000;

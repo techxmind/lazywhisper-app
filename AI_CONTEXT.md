@@ -9,3 +9,7 @@
 * **Memory-Only Secrets**: 任何解密后的明文、用户输入的密码，只允许存在于 React/Rust 的内存变量中。严禁将其写入 `localStorage`、`IndexedDB` 或磁盘日志。
 * **State Kill Switch (状态熔断)**: 系统必须具备全局的“锁屏/熔断”能力。在任何涉及数据读取、导出的关键流入口，必须优先校验当前的锁定状态。锁屏触发时，必须拥有最高 UI 层级并销毁底层敏感状态。
 * **Cross-Platform Asynchrony**: 永远假设 Desktop (Tauri) 和 Mobile (WebView) 的原生 API 响应存在延迟和竞态条件。初始化和通信机制必须是防御性、容错的（例如事件握手队列）。
+
+## 3. **IPC Boundary Defense (跨进程通信边界防御)**
+* Rust 端 (`src-tauri`) 不能无条件信任来自 React 前端的任何输入。所有 `invoke` 命令在处理文件操作前，必须在 Rust 侧进行路径净化（Path Sanitization），防止目录穿越。
+* Rust 端返回给前端的错误信息必须经过脱敏处理，严禁暴露系统底层绝对路径或加密算法的原始调用栈。

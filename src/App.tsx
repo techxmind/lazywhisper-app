@@ -429,8 +429,24 @@ function App() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
   }, []);
 
+  // Global mutex: prevents handleManualLock and useAutoLock from racing
+  const lockInProgressRef = useRef(false);
+
+  // HIGH-3 Fix: Ref to the Tiptap editor instance for explicit destruction on lock
+  const editorInstanceRef = useRef<{ destroy: () => void; commands: { clearContent: (emitUpdate?: boolean) => boolean } } | null>(null);
+
   const forceLock = () => {
-    // Layer 1: Global State Kill Switch
+    // Layer 1: Physically destroy Tiptap editor — wipe DOM + ProseMirror doc tree
+    if (editorInstanceRef.current) {
+      try {
+        // Clear content first (zeroes out ProseMirror NodeTree), then destroy instance
+        editorInstanceRef.current.commands.clearContent(true);
+        editorInstanceRef.current.destroy();
+      } catch (_) { /* already destroyed */ }
+      editorInstanceRef.current = null;
+    }
+
+    // Layer 2: Global State Kill Switch — wipe all sensitive React state
     setIsSettingsOpen(false);
     
     setVaultPassword("");
@@ -441,15 +457,35 @@ function App() {
     setIsLocked(true);
   };
 
-  const handleManualLock = () => {
-    if (hasUnsavedChanges) {
-      const confirmSave = window.confirm(t('app.unsavedMsg'));
-      if (confirmSave) {
-        saveCurrentVault().then(forceLock);
-        return;
+  const handleManualLock = async () => {
+    // Mutex gate: prevent concurrent lock attempts
+    if (lockInProgressRef.current) return;
+    lockInProgressRef.current = true;
+
+    try {
+      if (hasUnsavedChanges) {
+        const shouldSave = await ask(
+          t('app.unsavedMsg'),
+          {
+            title: `${t('window.title')} - ${t('app.unsaved')}`,
+            kind: 'warning',
+            okLabel: t('app.saveAndLock'),
+            cancelLabel: t('app.discardAndLock'),
+          }
+        );
+
+        if (shouldSave) {
+          const success = await saveCurrentVault();
+          if (!success) {
+            lockInProgressRef.current = false;
+            return;
+          }
+        }
       }
+      forceLock();
+    } finally {
+      lockInProgressRef.current = false;
     }
-    forceLock();
   };
 
   const handleNewDoc = () => {
@@ -552,7 +588,7 @@ function App() {
   };
 
   // Setup auto lock feature via Timestamp Polling (Heartbeat) extracted to custom hook
-  useAutoLock({ autoLockRef, forceLock });
+  useAutoLock({ autoLockRef, forceLock, lockInProgressRef });
 
   if (!isPathReady || isChecking) {
     return (
@@ -644,6 +680,7 @@ function App() {
                   isSaved={isSaved}
                   lastSavedTimestamp={lastSavedTimestamp}
                   editorFocusTrigger={editorFocusTrigger}
+                  editorInstanceRef={editorInstanceRef}
                 />
               ) : (
                 <div className="flex items-center justify-center p-20 text-gray-400">

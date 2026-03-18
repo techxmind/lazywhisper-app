@@ -12,6 +12,35 @@ const CURRENT_CRYPTO_VERSION: &str = "v1";
 
 static PENDING_PATHS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
+/// Sanitize a vault file path to prevent path traversal attacks.
+/// Rejects any path containing `..` components and enforces `.wspace` extension.
+/// Supports both absolute paths (from Tauri file dialogs) and relative filenames.
+fn sanitize_vault_path(filename: &str) -> Result<PathBuf, String> {
+    // Reject empty or overly long paths
+    if filename.is_empty() || filename.len() > 1024 {
+        return Err("Invalid path: length out of bounds".to_string());
+    }
+    // Reject path traversal attempts (.. in any component)
+    if filename.contains("..") {
+        return Err("Invalid path: path traversal detected".to_string());
+    }
+    // Enforce .wspace extension
+    if !filename.ends_with(".wspace") {
+        return Err("Invalid path: must have .wspace extension".to_string());
+    }
+
+    let path = PathBuf::from(filename);
+    if path.is_absolute() {
+        // Absolute path from file dialog — use directly
+        Ok(path)
+    } else {
+        // Relative filename — join to cwd
+        let mut file_path = PathBuf::from(env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+        file_path.push(filename);
+        Ok(file_path)
+    }
+}
+
 fn write_debug_log(_msg: &str) {
     /*
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
@@ -30,6 +59,7 @@ fn write_debug_log(_msg: &str) {
 
 #[tauri::command]
 fn save_vault(filename: String, password: String, content: String) -> Result<bool, String> {
+    let file_path = sanitize_vault_path(&filename)?;
     let password_z = Zeroizing::new(password);
     let content_z = Zeroizing::new(content);
 
@@ -40,11 +70,7 @@ fn save_vault(filename: String, password: String, content: String) -> Result<boo
     let mut payload = format!("{}:", CURRENT_CRYPTO_VERSION).into_bytes();
     payload.append(&mut encrypted_bytes);
 
-    // Save to file in current dir
-    let mut file_path = PathBuf::from(env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
-    file_path.push(&filename);
-
-    fs::write(&file_path, payload).map_err(|e| format!("Failed to save vault: {}", e))?;
+    fs::write(&file_path, payload).map_err(|_| "Failed to save vault: I/O error".to_string())?;
 
     Ok(true)
 }
@@ -77,11 +103,15 @@ pub fn parse_and_decrypt_bytes(data: &[u8], password: &str) -> Result<String, St
 
 #[tauri::command]
 fn load_vault(filename: String, password: String) -> Result<String, String> {
-    // Read full byte array
-    let mut file_path = PathBuf::from(env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
-    file_path.push(&filename);
+    let file_path = sanitize_vault_path(&filename)?;
 
-    let data = fs::read(&file_path).map_err(|e| format!("Failed to read vault: {}", e))?;
+    let data = fs::read(&file_path).map_err(|e| {
+        // Expose only the OS error code, not the full path
+        match e.raw_os_error() {
+            Some(code) => format!("Failed to read vault: os error {}", code),
+            None => "Failed to read vault: I/O error".to_string(),
+        }
+    })?;
 
     parse_and_decrypt_bytes(&data, &password)
 }
@@ -101,8 +131,8 @@ fn export_shared_file(
     let mut payload = format!("{}:", CURRENT_CRYPTO_VERSION).into_bytes();
     payload.append(&mut encrypted_bytes);
 
-    // Save to specified file path
-    fs::write(&file_path, payload).map_err(|e| format!("Failed to export shared file: {}", e))?;
+    // Save to specified file path (validated by Tauri dialog, but sanitize write errors)
+    fs::write(&file_path, payload).map_err(|_| "Failed to export shared file: I/O error".to_string())?;
 
     Ok(true)
 }

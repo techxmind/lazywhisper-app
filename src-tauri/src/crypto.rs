@@ -90,16 +90,17 @@ pub fn decrypt_v1(data: &[u8], password: &Zeroizing<String>) -> Result<Zeroizing
     let cipher = Aes256Gcm::new(key.as_ref().into());
 
     // 4. Decrypt
-    let mut plaintext_bytes = cipher
+    let plaintext_bytes = cipher
         .decrypt(nonce, ciphertext)
         .map_err(|_| "Decryption failed: Incorrect password or corrupted data".to_string())?;
 
-    // 5. Convert to String
-    let plaintext = String::from_utf8(plaintext_bytes.clone())
-        .map_err(|_| "Invalid UTF-8 sequence".to_string())?;
-
-    // Explicitly zeroize plaintext bytes before returning String
-    plaintext_bytes.zeroize();
+    // 5. Convert to String — consume Vec directly, no .clone()
+    let plaintext = String::from_utf8(plaintext_bytes)
+        .map_err(|mut e| {
+            // Zeroize the failed bytes before dropping
+            e.as_bytes().to_vec().zeroize();
+            "Invalid UTF-8 sequence".to_string()
+        })?;
 
     Ok(Zeroizing::new(plaintext))
 }

@@ -24,6 +24,14 @@ export function UnlockScreen({ onUnlock, onCreate, isVaultExists, error }: Unloc
     return () => clearTimeout(timer);
   }, []);
 
+  // MEDIUM-5: Zeroize passwords on unmount
+  useEffect(() => {
+    return () => {
+      setPassword('');
+      setConfirmPassword('');
+    };
+  }, []);
+
   // Brute-force resistance states
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockoutEndTime, setLockoutEndTime] = useState<number | null>(null);

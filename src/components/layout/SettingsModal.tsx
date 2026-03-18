@@ -48,6 +48,15 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
     getVersion().then(setAppVersion).catch(console.error);
   }, []);
 
+  // MEDIUM-5: Zeroize password fields on unmount
+  useEffect(() => {
+    return () => {
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    };
+  }, []);
+
   if (!isOpen) return null;
 
   const handleChangeLocation = async () => {

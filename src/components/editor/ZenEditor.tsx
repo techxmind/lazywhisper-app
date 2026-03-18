@@ -34,9 +34,10 @@ interface ZenEditorProps {
   isSaved: boolean;
   lastSavedTimestamp: number;
   editorFocusTrigger?: number;
+  editorInstanceRef?: React.MutableRefObject<{ destroy: () => void; commands: { clearContent: (emitUpdate?: boolean) => boolean } } | null>;
 }
 
-export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhisperKey, onSetSessionWhisperKey, onUpdateDocHash, onContentChange, onSave, hasUnsavedChanges, isSaving, isSaved, lastSavedTimestamp, editorFocusTrigger }: ZenEditorProps) {
+export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhisperKey, onSetSessionWhisperKey, onUpdateDocHash, onContentChange, onSave, hasUnsavedChanges, isSaving, isSaved, lastSavedTimestamp, editorFocusTrigger, editorInstanceRef }: ZenEditorProps) {
   const { t, i18n } = useTranslation();
 
   const [mobileHeaderNode, setMobileHeaderNode] = useState<Element | null>(null);
@@ -142,6 +143,19 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
 
     return () => clearTimeout(handler);
   }, [localContent, activeDoc.id]); // trigger debounce countdown whenever user types
+
+  // HIGH-3: Wire editor ref to parent for forceLock destruction
+  // + MEDIUM-5: Zeroize all sensitive state on unmount
+  useEffect(() => {
+    return () => {
+      // Unmount cleanup: scrub all sensitive data from component state
+      setWhisperKey('');
+      setConfirmWhisperKey('');
+      setRealSecret('');
+      setRevealKey('');
+      setPopoverDecryptedSecret(null);
+    };
+  }, []);
 
   const editor = useEditor({
     extensions: [
@@ -342,6 +356,18 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
       }
     },
   }, [i18n.language]);
+
+  // HIGH-3: Expose editor instance to parent for forceLock destruction
+  useEffect(() => {
+    if (editorInstanceRef && editor) {
+      editorInstanceRef.current = editor;
+    }
+    return () => {
+      if (editorInstanceRef) {
+        editorInstanceRef.current = null;
+      }
+    };
+  }, [editor, editorInstanceRef]);
 
   const prevDocIdRef = useRef(activeDoc.id);
 
@@ -620,6 +646,11 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
     }).run();
 
     setIsModalOpen(false);
+    // HIGH-2 Fix: Zeroize sensitive modal state after sealing
+    setWhisperKey('');
+    setConfirmWhisperKey('');
+    setRealSecret('');
+    setCurrentCoverText('');
   };
 
   const handleRevealWhisper = async () => {
@@ -1054,20 +1085,20 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
                   }}
                 />
                 <p className="text-[13px] text-zinc-500 mt-1 px-1">
-                  口令验证通过后，在空间锁定前无需再次输入。
+                  {t('reveal.sessionHint')}
                 </p>
               </div>
               {revealError && !revealLockoutEndTime && !revealNewerVersion && <span className="text-xs text-red-500 px-1">{revealError}</span>}
               {revealLockoutEndTime && remainingRevealLockout > 0 && !revealNewerVersion && (
                 <div className="flex items-center gap-2 bg-red-50 border border-red-100 text-red-600 text-xs px-3 py-2 rounded-lg mt-1 w-full text-left">
                   <Lock size={14} className="shrink-0" />
-                  <span>尝试次数过多，请在 {remainingRevealLockout} 秒后重试。</span>
+                  <span>{t('reveal.lockout', { time: remainingRevealLockout })}</span>
                 </div>
               )}
               {revealNewerVersion && (
                 <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-600 text-xs px-3 py-2 rounded-lg mt-1 w-full text-left">
                   <AlertCircle size={14} className="shrink-0" />
-                  <span>此密语由更高版本的加密算法生成，请升级软件。</span>
+                  <span>{t('reveal.newerVersion')}</span>
                 </div>
               )}
             </div>
