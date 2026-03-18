@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Share, Save, Bold, Italic, Lock, Highlighter, Palette, Image as ImageIcon, AlertCircle } from 'lucide-react';
+import { Share, Save, Bold, Italic, Lock, Highlighter, Palette, Image as ImageIcon, AlertCircle, X, Copy, Check } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { hashKey } from '../../utils/crypto';
 import { VaultDocument } from '../../App';
@@ -70,6 +70,19 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
   const [revealedSecret, setRevealedSecret] = useState<string | null>(null);
   const [revealError, setRevealError] = useState('');
   const [revealNewerVersion, setRevealNewerVersion] = useState(false);
+
+  // Popover State (UX Upgrade)
+  const [activePopoverData, setActivePopoverData] = useState<{ coverText: string, encryptedSecret: string, rect: DOMRect } | null>(null);
+  const [popoverDecryptedSecret, setPopoverDecryptedSecret] = useState<string | null>(null);
+  const [isPopoverDecrypting, setIsPopoverDecrypting] = useState(false);
+  const [popoverError, setPopoverError] = useState('');
+  const [popoverCopied, setPopoverCopied] = useState(false);
+
+  // Fix: Track session key in a mutable ref to escape useEditor's stale closure
+  const sessionKeyRef = useRef(sessionWhisperKey);
+  useEffect(() => {
+    sessionKeyRef.current = sessionWhisperKey;
+  }, [sessionWhisperKey]);
 
   // Brute-force local lockouts for Reveal Modal
   const [failedRevealAttempts, setFailedRevealAttempts] = useState(0);
@@ -178,12 +191,24 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
           event.stopPropagation();
           window.getSelection()?.removeAllRanges();
           
-          // Just extract data, do NOT check session keys within this stale closure scope
-          setActiveRevealData({
-            coverText: whisperAttrs.coverText,
-            encryptedSecret: whisperAttrs.encryptedSecret
-          });
-          setIsRevealModalOpen(true);
+          if (sessionKeyRef.current) {
+            // Authorized state: Route to lightweight Popover
+            const rect = target.getBoundingClientRect();
+            setActivePopoverData({
+              coverText: whisperAttrs.coverText,
+              encryptedSecret: whisperAttrs.encryptedSecret,
+              rect
+            });
+            setIsRevealModalOpen(false); // Ensure modal is closed
+          } else {
+            // Unauthorized state: Route to global Reveal Modal for password input
+            setActiveRevealData({
+              coverText: whisperAttrs.coverText,
+              encryptedSecret: whisperAttrs.encryptedSecret
+            });
+            setIsRevealModalOpen(true);
+            setActivePopoverData(null); // Ensure popover is closed
+          }
           return true;
         }
         return false;
@@ -307,6 +332,49 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
     return () => clearInterval(interval);
   }, [revealLockoutEndTime]);
 
+  // Popover Decryption Effect
+  useEffect(() => {
+    if (activePopoverData && sessionWhisperKey) {
+      setIsPopoverDecrypting(true);
+      setPopoverError('');
+      invoke<string>('decrypt_secret', {
+        ciphertext: activePopoverData.encryptedSecret,
+        key: sessionWhisperKey
+      }).then((extracted) => {
+        setPopoverDecryptedSecret(extracted);
+      }).catch((err) => {
+        setPopoverError(typeof err === 'string' ? err : 'Decryption failed');
+        setPopoverDecryptedSecret(null);
+      }).finally(() => {
+        setIsPopoverDecrypting(false);
+      });
+    } else {
+      setPopoverDecryptedSecret(null);
+    }
+  }, [activePopoverData, sessionWhisperKey]);
+
+  // Popover Dismissal (Outside Click)
+  useEffect(() => {
+    if (!activePopoverData) return;
+    
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement;
+      // If click is inside popover or inside a whisper node, don't close here
+      // (Whisper node clicks are handled by handleClick which will swap the popover data)
+      if (target.closest('.whisper-popover-container') || target.closest('span[data-type="whisperNode"]')) {
+        return;
+      }
+      setActivePopoverData(null);
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('touchstart', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [activePopoverData]);
+
   // Click detection for Whisper Reveal is now handled natively via `handleClick` editorProps
   // Removed old DOM listener hook entirely to avoid propagation conflicts.
 
@@ -316,6 +384,8 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
       if (e.key === 'Escape') {
         if (isRevealModalOpen) {
           handleCloseRevealModal();
+        } else if (activePopoverData) {
+          setActivePopoverData(null);
         } else if (isExportModalOpen) {
           setIsExportModalOpen(false);
         } else if (isModalOpen) {
@@ -326,7 +396,7 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isRevealModalOpen, isExportModalOpen, isModalOpen]);
+  }, [isRevealModalOpen, isExportModalOpen, isModalOpen, activePopoverData]);
 
   if (!editor) {
     return null;
@@ -893,6 +963,86 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
                   {t('reveal.reveal')}
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 密语轻量级解密浮层 Popover (Authorized State) */}
+      {activePopoverData && (
+        <div
+          className="whisper-popover-container fixed z-[60] animate-in fade-in zoom-in-95 duration-150 ease-out"
+          style={{
+            // Try to place above, if < 200px space, place below
+            top: activePopoverData.rect.top > 200 
+              ? activePopoverData.rect.top - 12 
+              : activePopoverData.rect.bottom + 12,
+            left: Math.min(
+              Math.max(activePopoverData.rect.left + (activePopoverData.rect.width / 2) - 170, 16), 
+              window.innerWidth - 356
+            ), // Center above target, prevent overflowing edges
+            transform: activePopoverData.rect.top > 200 ? 'translateY(-100%)' : 'none',
+          }}
+        >
+          {/* Arrow Caret */}
+          <div 
+            className="absolute w-4 h-4 bg-white transform rotate-45 border-r border-b border-gray-100 shadow-[2px_2px_4px_rgba(0,0,0,0.02)]"
+            style={{
+              left: Math.max(
+                16, 
+                activePopoverData.rect.left - Math.max(activePopoverData.rect.left + (activePopoverData.rect.width / 2) - 170, 16) + (activePopoverData.rect.width / 2) - 8
+              ) + 'px',
+              ...(activePopoverData.rect.top > 200 
+                ? { bottom: '-8px' } // Pointing down
+                : { top: '-8px', borderRight: 'none', borderBottom: 'none', borderLeft: '1px solid #f3f4f6', borderTop: '1px solid #f3f4f6', boxShadow: '-2px -2px 4px rgba(0,0,0,0.02)' } // Pointing up
+              )
+            }}
+          />
+
+          <div className="bg-white border border-gray-100/80 shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-2xl p-6 w-[340px] max-h-64 flex flex-col gap-3 relative z-10">
+            <button
+              className="absolute top-4 right-4 p-1.5 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-md transition-colors"
+              onClick={() => {
+                setActivePopoverData(null);
+                setPopoverCopied(false);
+              }}
+              aria-label="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            
+            <div className="text-xs font-medium text-zinc-500 uppercase tracking-wider pr-6">
+              {activePopoverData.coverText}
+            </div>
+            
+            <div className="flex-1 overflow-y-auto pr-1">
+              {isPopoverDecrypting ? (
+                <div className="flex items-center gap-2 text-sm text-zinc-400 py-2">
+                  <span className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></span>
+                  {t('reveal.decrypting') || 'Decrypting...'}
+                </div>
+              ) : popoverError ? (
+                <div className="text-sm text-red-500 py-1 bg-red-50 px-2 rounded-md border border-red-100">
+                  {popoverError}
+                </div>
+              ) : popoverDecryptedSecret ? (
+                <div className="relative group/secret">
+                  <div className="text-xl font-bold text-zinc-950 leading-relaxed break-words pr-8">
+                    {popoverDecryptedSecret}
+                  </div>
+                  <button
+                    className="absolute top-0 right-0 p-1.5 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-md transition-colors opacity-0 group-hover/secret:opacity-100 focus:opacity-100 flex items-center justify-center bg-white/50"
+                    onClick={() => {
+                      navigator.clipboard.writeText(popoverDecryptedSecret);
+                      setPopoverCopied(true);
+                      setTimeout(() => setPopoverCopied(false), 2000);
+                    }}
+                    title="Copy secret"
+                  >
+                    {popoverCopied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
