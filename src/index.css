@@ -82,6 +82,11 @@
     pointer-events: none;
   }
 
+  /* Collapse top margin on first child to prevent phantom cursor gap */
+  .ProseMirror > :first-child {
+    margin-top: 0 !important;
+  }
+
   .ProseMirror p {
     position: relative;
     min-height: 1.625em; /* Match Tailwind leading-relaxed */

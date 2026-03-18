@@ -13,6 +13,7 @@ import Color from '@tiptap/extension-color';
 import TextStyle from '@tiptap/extension-text-style';
 import Highlight from '@tiptap/extension-highlight';
 import Image from '@tiptap/extension-image';
+import { Slice, Fragment, DOMParser as PMDOMParser } from '@tiptap/pm/model';
 import { WhisperNode } from '../../core/tiptap/WhisperExtension';
 
 function formatTime(timestamp: number): string {
@@ -123,11 +124,19 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
   const localContentRef = useRef(activeDoc.content); // For instant sync logic bypassing stale closures
   const localTitleRef = useRef(activeDoc.title || t('sidebar.untitled'));
 
+  const wasDirtyRef = useRef(false);
+
   useEffect(() => {
     const handler = setTimeout(() => {
-      // Only push up to App.tsx if the local content has actually drifted from the baseline
-      if (localContentRef.current !== baselineContentRef.current) {
+      const isDirty = localContentRef.current !== baselineContentRef.current;
+      // Only notify App.tsx when dirty state actually changes, or content drifted
+      if (isDirty) {
         onContentChange(activeDoc.id, localContentRef.current, localTitleRef.current, true);
+        wasDirtyRef.current = true;
+      } else if (wasDirtyRef.current) {
+        // Transition: dirty → clean (e.g. after Ctrl+Z) — signal App.tsx to clear dirty flag
+        onContentChange(activeDoc.id, localContentRef.current, localTitleRef.current, false);
+        wasDirtyRef.current = false;
       }
     }, 500);
 
@@ -248,6 +257,34 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
           return false;
         }
       },
+      transformPasted: (slice) => {
+        const currentNoteId = activeDoc.id;
+        let isCorrupted = false;
+
+        const unwrapNodes = (fragment: Fragment): Fragment => {
+          const nodes: any[] = [];
+          fragment.forEach((node) => {
+            if (node.type.name === 'whisperNode') {
+              if (node.attrs.originNoteId !== currentNoteId) {
+                isCorrupted = true;
+                if (node.attrs.coverText) {
+                  nodes.push(node.type.schema.text(node.attrs.coverText));
+                }
+              } else {
+                nodes.push(node);
+              }
+            } else if (node.isText) {
+              nodes.push(node);
+            } else {
+              nodes.push(node.copy(unwrapNodes(node.content)));
+            }
+          });
+          return Fragment.from(nodes);
+        };
+
+        const newFragment = unwrapNodes(slice.content);
+        return isCorrupted ? new Slice(newFragment, slice.openStart, slice.openEnd) : slice;
+      },
       handlePaste: (view, event) => {
         const items = event.clipboardData?.items;
         if (!items) return false;
@@ -306,27 +343,40 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
     },
   }, [i18n.language]);
 
+  const prevDocIdRef = useRef(activeDoc.id);
+
   // Sync editor content with activeDoc.content when activeDoc.id changes
   useEffect(() => {
     if (editor) {
       if (activeDoc.content !== editor.getHTML()) {
-        editor.commands.setContent(activeDoc.content);
+        // Use raw ProseMirror transaction with addToHistory:false
+        // to prevent Ctrl+Z from loading previous document content
+        const div = document.createElement('div');
+        div.innerHTML = activeDoc.content;
+        const parser = PMDOMParser.fromSchema(editor.schema);
+        const parsed = parser.parse(div);
+        const tr = editor.state.tr
+          .replaceWith(0, editor.state.doc.content.size, parsed.content)
+          .setMeta('addToHistory', false);
+        editor.view.dispatch(tr);
+
         const normalizedHTML = editor.getHTML();
         localContentRef.current = normalizedHTML;
         setLocalContent(normalizedHTML);
         baselineContentRef.current = normalizedHTML;
-      } else {
-        baselineContentRef.current = editor.getHTML();
       }
       localTitleRef.current = activeDoc.title || t('sidebar.untitled');
 
-      // Guarantee AutoFocus always jumps to the end of the text on every Doc Swap
-      const timer = setTimeout(() => {
-        if (!editor.isDestroyed) {
-          editor.commands.focus('end');
-        }
-      }, 50);
-      return () => clearTimeout(timer);
+      // Guarantee AutoFocus always jumps to the end of the text ONLY on a hard Doc Swap
+      if (prevDocIdRef.current !== activeDoc.id) {
+        prevDocIdRef.current = activeDoc.id;
+        const timer = setTimeout(() => {
+          if (!editor.isDestroyed) {
+            editor.commands.focus('end');
+          }
+        }, 50);
+        return () => clearTimeout(timer);
+      }
     }
   }, [activeDoc.id, editor, activeDoc.content, activeDoc.title, t]); // rely on doc ID swap
 
@@ -566,6 +616,7 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
     editor.chain().focus().setWhisperNode({
       coverText: currentCoverText,
       encryptedSecret: encryptedSecret,
+      originNoteId: activeDoc.id
     }).run();
 
     setIsModalOpen(false);
@@ -811,11 +862,7 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
         <EditorContent
           editor={editor}
           className="w-full flex-1 focus:outline-none border-none outline-none ring-0 h-full"
-          onClick={() => {
-            if (editor && !editor.isDestroyed) {
-              editor.commands.focus('end');
-            }
-          }}
+          onClick={() => editor?.commands.focus()}
         />
 
         {/* Update timestamp */}

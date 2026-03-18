@@ -7,7 +7,7 @@ export interface WhisperOptions {
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     whisperNode: {
-      setWhisperNode: (attributes: { coverText: string; encryptedSecret: string }) => ReturnType;
+      setWhisperNode: (attributes: { coverText: string; encryptedSecret: string; originNoteId: string }) => ReturnType;
     };
   }
 }
@@ -42,6 +42,15 @@ export const WhisperNode = Node.create<WhisperOptions>({
         renderHTML: attributes => {
           return {
             'data-secret': attributes.encryptedSecret,
+          };
+        },
+      },
+      originNoteId: {
+        default: '',
+        parseHTML: element => element.getAttribute('data-origin-id'),
+        renderHTML: attributes => {
+          return {
+            'data-origin-id': attributes.originNoteId,
           };
         },
       },
