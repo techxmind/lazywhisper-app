@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Lock, AlertCircle } from 'lucide-react';
 
@@ -14,6 +14,15 @@ export function UnlockScreen({ onUnlock, onCreate, isVaultExists, error }: Unloc
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [localError, setLocalError] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Robust AutoFocus on Mount (bypassing animation swallowing)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      inputRef.current?.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Brute-force resistance states
   const [failedAttempts, setFailedAttempts] = useState(0);
@@ -104,12 +113,12 @@ export function UnlockScreen({ onUnlock, onCreate, isVaultExists, error }: Unloc
 
         <form onSubmit={handleSubmit} className="w-full flex w-full flex-col gap-2">
           <input
+            ref={inputRef}
             type="password"
             placeholder={t('unlock.placeholder')}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base md:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow text-center tracking-widest disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
-            autoFocus
             disabled={!!lockoutEndTime || newerVersionError}
           />
           {!isVaultExists && (

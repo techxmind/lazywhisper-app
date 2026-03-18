@@ -1,51 +1,24 @@
-# LazyWhisper Design Guidelines
+# LazyWhisper - UI/UX Design System
 
-## 核心领域概念 (Domain Ontology)
-- **密语空间 (Space / Vault)**: 指代整个应用的底层加密容器（`.wspace` 文件）。
-- **手记 (Note)**: 指代左侧边栏中的每一个独立页面（原“文档”）。
-- **密语 (Whisper)**: 仅限指代手记内容中，那些被单独加密、需要局部密码解锁的内联富文本块。绝对禁止将整个手记页面称为“密语”或“文档”。
+## 1. Interaction Paradigms (核心交互范式)
+* **Contextual Over Global (上下文优于全局中断)**: 
+  * 尽可能避免使用全局 Modal 遮罩打断用户心流。
+  * 对于局部信息的查看、解密、轻量级操作，优先使用紧贴目标的浮层（Popover/Tooltip）或内联展开（Accordion）。仅在涉及全局设置、高危确认时使用 Modal。
+* **Zero-Click Input (零点击输入预测)**: 
+  * 永远预测用户的下一步输入意图。进入任何具有明确输入目的的新界面时，必须自动将焦点（Focus）劫持到主输入框。
+* **Graceful Degradation (优雅降级与响应式)**: 
+  * 移动端不是桌面端的缩小版。侧边栏必须转换为抽屉（Drawer），复杂的多栏布局必须折叠为栈式布局。
 
-## Core Principles
-- **Zen & Minimalist**: Breathe spacing into all elements. Never crowd the user.
-- **macOS Native Feel**: Interactions should feel like a native, premium desktop application.
+## 2. Visual Language (视觉语言)
+* **Monochromatic Hierarchy (单色层级)**: 
+  * 放弃高饱和度的主题色。依靠 `zinc/gray` 灰度色阶、字体粗细（Weight）、字间距（Tracking）来构建视觉焦点。
+* **Elevation & Material (层级与材质)**: 
+  * 基础背景保持扁平纯色。通过柔和的阴影（Shadows）和背景模糊（Backdrop Blur）来区分浮层与底层，构建深度感。
+* **Strict Iconography**: 
+  * 禁用任何平台自带的 Emoji。统一使用线框风格的 SVG 图标库（如 Lucide），保持线条粗细绝对一致。
 
-## Iconography
-- **Strictly No Emojis**: Absolutely no emojis (🔒, 🔑, 👁️, 🔓, etc.) are permitted for UI icons.
-- **Lucide React**: Exclusively use `lucide-react` monochromatic wireframe icons.
-  - Line thickness must remain consistent.
-  - Default color should map to context, usually `text-gray-500` for secondary hints, or `text-gray-800` for active states.
-
-## Color Palette & Buttons
-- **Primary Action (Primary Button)**:
-  - Base: `bg-gray-800 text-white font-medium rounded-lg px-5 py-2.5 transition-colors shadow-sm`
-  - Hover: `hover:bg-gray-900`
-  - Disabled/Locked: `disabled:bg-gray-100 disabled:text-gray-400 disabled:border disabled:border-gray-200 disabled:cursor-not-allowed disabled:shadow-none`
-- **Secondary Action (Cancel/Close Button)**:
-  - Base/Bordered: `bg-white border border-gray-200 text-gray-600 font-medium rounded-lg px-4 py-2 transition-colors`
-  - Hover: `hover:bg-gray-50`
-- **Avoid High Saturation**: Do not use generic, highly saturated colors like bright blue or flat red for primary structural bounds. Use muted grays, slates, and rich dark tones.
-
-## Inputs & Textareas
-- **Focus Rings**:
-  - `bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow`
-- **No Underlines**: Absolutely no minimalist underline text fields. All inputs must be fully bounded containers.
-- **Global Input Security (No Safari/OS Interference)**: All password inputs, temporary keys, and secret textareas MUST explicitly disable OS-level auto-correction, spell check, and auto-capitalization to prevent leakage or annoying UX during secure entry.
-  - MUST include: `spellCheck="false" autoCorrect="off" autoCapitalize="off"`
-
-## States & Feedback
-- **Error/Warning States**:
-  - Do not use naked red text suspended in empty space.
-  - Wrap errors in contained structural blocks:
-  - Example: `bg-red-50 text-red-600 border border-red-100 rounded-lg px-4 py-3 text-sm`
-  - Pair with a corresponding Lucide icon (e.g., `AlertCircle`, `Lock`) for clarity.
-
-## Typography
-- **Tracking & Weight**:
-  - Passwords: Use `tracking-widest` to enforce visual separation of masked dots.
-  - Sub-headers/Labels: Use `uppercase tracking-widest text-[11px] font-bold text-gray-500` for grouping labels (like the Reveal Modal categories).
-
-## Strict i18n Policy (🌐 多语言强制规范)
-- **Zero Hardcoding**: Absolutely no hardcoded raw Chinese or English strings are permitted in front-end React code (JSX text, placeholders, alerts, modals).
-- **Enforced keys**: All user-facing text must be added as synchronized key-value pairs in `src/i18n.ts` (or respective localization JSON files).
-- **Dynamic Translation**: Exclusively use `const { t } = useTranslation();` to dynamically render strings.
-- **Proactive Checklist**: On every feature addition or refactor, proactively check for un-translated strings and map them systematically before requesting user review.
+## 3. Security UX (安全类 UI 专属原则)
+* **Input Sandbox (输入框沙盒)**: 
+  * 涉及密码和密语的输入区域，必须从 UI 层面彻底切断操作系统的辅助干扰（禁用拼写检查、首字母大写、自动联想）。
+* **Clear Cryptographic State**: 
+  * 加密/解密、锁定/解锁的视觉状态必须有强烈的对比（例如：掩码模糊 vs 清晰粗体）。

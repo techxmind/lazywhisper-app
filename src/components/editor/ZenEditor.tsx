@@ -32,9 +32,10 @@ interface ZenEditorProps {
   isSaving: boolean;
   isSaved: boolean;
   lastSavedTimestamp: number;
+  editorFocusTrigger?: number;
 }
 
-export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhisperKey, onSetSessionWhisperKey, onUpdateDocHash, onContentChange, onSave, hasUnsavedChanges, isSaving, isSaved, lastSavedTimestamp }: ZenEditorProps) {
+export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhisperKey, onSetSessionWhisperKey, onUpdateDocHash, onContentChange, onSave, hasUnsavedChanges, isSaving, isSaved, lastSavedTimestamp, editorFocusTrigger }: ZenEditorProps) {
   const { t, i18n } = useTranslation();
   
   const [mobileHeaderNode, setMobileHeaderNode] = useState<Element | null>(null);
@@ -63,6 +64,11 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
   const [isExporting, setIsExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
 
+  // Modal AutoFocus Refs
+  const createModalInputRef = useRef<HTMLInputElement>(null);
+  const createModalTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const revealModalInputRef = useRef<HTMLInputElement>(null);
+
   // Reveal State
   const [isRevealModalOpen, setIsRevealModalOpen] = useState(false);
   const [activeRevealData, setActiveRevealData] = useState<{ coverText: string, encryptedSecret: string } | null>(null);
@@ -70,6 +76,30 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
   const [revealedSecret, setRevealedSecret] = useState<string | null>(null);
   const [revealError, setRevealError] = useState('');
   const [revealNewerVersion, setRevealNewerVersion] = useState(false);
+
+  // Robust AutoFocus for Create Modal
+  useEffect(() => {
+    if (isModalOpen) {
+      const timer = setTimeout(() => {
+        if (!sessionWhisperKey) {
+          createModalInputRef.current?.focus();
+        } else {
+          createModalTextareaRef.current?.focus();
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isModalOpen, sessionWhisperKey]);
+
+  // Robust AutoFocus for Reveal Modal
+  useEffect(() => {
+    if (isRevealModalOpen && !revealedSecret && activeRevealData) {
+      const timer = setTimeout(() => {
+        revealModalInputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isRevealModalOpen, revealedSecret, activeRevealData]);
 
   // Popover State (UX Upgrade)
   const [activePopoverData, setActivePopoverData] = useState<{ coverText: string, encryptedSecret: string, rect: DOMRect } | null>(null);
@@ -283,6 +313,16 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
       localTitleRef.current = activeDoc.title || t('sidebar.untitled');
     }
   }, [activeDoc.id, editor, activeDoc.content, activeDoc.title, t]); // rely on doc ID swap
+
+  // Global UX AutoFocus for New Note creation
+  useEffect(() => {
+    if (editorFocusTrigger && editorFocusTrigger > 0 && editor) {
+      const timer = setTimeout(() => {
+        editor.commands.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [editorFocusTrigger, editor]);
 
   // Force baseline diff synchronization on global saves
   useEffect(() => {
@@ -757,6 +797,7 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
                 <div className="flex flex-col space-y-3">
                   <div>
                     <input
+                      ref={createModalInputRef}
                       type="password"
                       placeholder={!activeDoc.whisperKeyHash ? t('whisper.setKey') : t('modal.keyPlaceholder')}
                       value={whisperKey}
@@ -791,6 +832,7 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
               <div className="mt-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">{t('modal.whisper')}</label>
                 <textarea
+                  ref={createModalTextareaRef}
                   placeholder={t('modal.secretPlaceholder')}
                   value={realSecret}
                   onChange={(e) => setRealSecret(e.target.value)}
@@ -799,7 +841,6 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
                   autoCapitalize="off"
                   className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base md:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow resize-none"
                   rows={4}
-                  autoFocus
                 />
               </div>
             </div>
@@ -915,6 +956,7 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
             ) : (
               <div className="flex flex-col gap-4 mt-4">
                 <input
+                  ref={revealModalInputRef}
                   type="password"
                   placeholder={t('reveal.placeholder')}
                   value={revealKey}
@@ -923,7 +965,6 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
                   autoCorrect="off"
                   autoCapitalize="off"
                   className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base md:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest disabled:opacity-50 disabled:bg-gray-50"
-                  autoFocus
                   disabled={!!revealLockoutEndTime || revealNewerVersion}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && revealKey.trim() && !revealLockoutEndTime && !revealNewerVersion) {

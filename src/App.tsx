@@ -32,6 +32,9 @@ function App() {
   const [vaultPassword, setVaultPassword] = useState("");
   const [documents, setDocuments] = useState<VaultDocument[]>([]);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
+  
+  // Auto-focus trigger for Editor
+  const [editorFocusTrigger, setEditorFocusTrigger] = useState<number>(0);
   const [unlockError, setUnlockError] = useState("");
   const [sessionKeys, setSessionKeys] = useState<Record<string, string>>({});
 
@@ -454,6 +457,7 @@ function App() {
     setDocuments(prev => [newDoc, ...prev]);
     setActiveDocId(newDoc.id);
     setUnsavedDocIds(prev => new Set(prev).add(newDoc.id));
+    setEditorFocusTrigger(Date.now()); // Global UX AutoFocus
   };
 
   const handleDeleteDoc = async (id: string) => {
@@ -639,6 +643,7 @@ function App() {
                   isSaving={isSaving}
                   isSaved={isSaved}
                   lastSavedTimestamp={lastSavedTimestamp}
+                  editorFocusTrigger={editorFocusTrigger}
                 />
               ) : (
                 <div className="flex items-center justify-center p-20 text-gray-400">
