@@ -1,18 +1,23 @@
-# LazyWhisper React/Frontend Rules (.cursorrules)
+# LazyWhisper - AI Coding Standards & Rules (.cursorrules)
 
-在生成或修改本项目的前端 React 代码时，必须**严格遵守**以下架构级铁律：
+在生成或修改任何代码时，必须强制遵守以下开发铁律：
 
-## 1. 焦点管理与零点击输入 (Zero-Click Input)
-- **默认自动聚焦**：用户进入需要输入的新界面（Modal、新页面）时，光标必须自动置于第一个主要 `<input>` 或 `<textarea>` 内。
-- **Modal 安全聚焦策略**：严禁在具有入场动画的 Modal/Dialog 中单纯依赖 `<input autoFocus />`。必须使用 `useRef` + `useEffect`，在挂载后显式调用 `inputRef.current?.focus()`。
-- **移动端防御**：移动端 (iOS/Android) 仅在“明确需要输入的场景”（如点击了“新建”或“解锁”按钮）才允许执行自动聚焦，避免首页软键盘意外遮挡屏幕。
+## 1. Defensive Frontend Engineering (防御性前端编程)
+* **Event Propagation Control (事件流阻断)**: 
+  * 在复杂的嵌套组件（如富文本编辑器内的交互块）中，必须严格管理事件冒泡（`stopPropagation`），并主动清理/校验浏览器的默认选区（Selection），防止触发意外的悬浮菜单或失去焦点。
+* **Animation-Aware State (感知动画的生命周期)**: 
+  * 凡是涉及入场/出场动画的组件（Modal/Popover），焦点获取或 DOM 测量必须在动画挂载完成后进行，严禁单纯依赖原生的 `autoFocus`。
 
-## 2. 移动端视口与软键盘防抖死 (Mobile Viewport & Keyboard Lock)
-- **禁止 iOS 默认推移**：iOS Safari/WebView 在键盘弹起时会将整个 `<body>` 推飞。开发全屏容器布局时，根节点必须使用 `h-[100dvh] overflow-hidden bg-zinc-950`，内部滚动区使用 `overflow-y-auto`。
-- **动态高度监听**：如果遭遇严重的键盘遮挡，必须优先编写/使用 `useVisualViewport` Hook 监听 `window.visualViewport.height` 来动态设定容器的精确像素高度。
+## 2. Mobile-First Viewport Resilience (移动端视口韧性)
+* **Keyboard Intrusion Defense (软键盘侵入防御)**: 
+  * 永远假设移动端软键盘会破坏布局。开发全屏或底部固定的组件时，必须使用动态视口单位（如 `dvh`），并锁定根节点的滚动（`overflow: hidden`），将滚动区域严格限制在内容层内。
+* **Safe Area Padding (安全区预留)**: 
+  * 所有贴边的导航栏、固定按钮，必须结合 CSS 环境变量（`env(safe-area-inset-*)`）进行内边距计算，防止被刘海屏或手势条遮挡。
 
-## 3. DOM 事件冲突与选区拦截 (Event & Selection Guard)
-- **阻止悬浮菜单误触发**：在开发处理选中文本后弹出的“悬浮操作栏 (Floating Toolbar)”时，**必须**在显示逻辑前拦截空选区：
-  ```javascript
-  const selection = window.getSelection();
-  if (!selection || selection.isCollapsed || selection.toString().trim() === '') return;
+## 3. Code Modernity & Cleanliness (现代代码规范)
+* **State Colocation (状态就近原则)**: 
+  * 避免无意义的全局状态提升。UI 状态（如弹窗开关）应保留在局部组件或 Context 中；仅将影响应用生命周期的核心数据（如密码缓存）放入全局 Store。
+* **Absolute i18n (绝对国际化)**: 
+  * 严禁在视图层（JSX/TSX）硬编码任何用户可见的文本串。所有文案变更必须通过多语言键值对（i18n keys）动态映射。
+* **Strict Type Safety**: 
+  * 禁用 `any`。所有组件 Props、API 响应、IPC 通信负载必须拥有明确的 TypeScript Interface 定义。
