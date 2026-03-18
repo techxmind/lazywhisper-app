@@ -60,7 +60,7 @@ export const WhisperNode = Node.create<WhisperOptions>({
     return [
       'span',
       mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
-        class: 'whisper-mark',
+        class: 'whisper-mark cursor-pointer',
         'data-type': 'whisperNode',
         contenteditable: 'false',
       }),

@@ -99,6 +99,7 @@ const resources = {
       'settings.themeDark': 'Dark Mode',
       'settings.doneBtn': 'Done',
       'editor.emptyState': 'Select a whisper...',
+      'editor.lastUpdate': 'Last Saved: ',
     },
   },
   zh: {
@@ -198,6 +199,7 @@ const resources = {
       'settings.themeDark': '深色模式',
       'settings.doneBtn': '完成',
       'editor.emptyState': '选择一段密语手记...',
+      'editor.lastUpdate': '上次保存: ',
     },
   },
 };

@@ -37,7 +37,7 @@ interface ZenEditorProps {
 
 export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhisperKey, onSetSessionWhisperKey, onUpdateDocHash, onContentChange, onSave, hasUnsavedChanges, isSaving, isSaved, lastSavedTimestamp, editorFocusTrigger }: ZenEditorProps) {
   const { t, i18n } = useTranslation();
-  
+
   const [mobileHeaderNode, setMobileHeaderNode] = useState<Element | null>(null);
 
   useEffect(() => {
@@ -176,74 +176,79 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
           'prose-blockquote:border-l-2 prose-blockquote:border-gray-200 prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:text-gray-500 ' +
           'outline-none border-none ring-0 focus:outline-none focus:ring-0 min-h-[500px] tiptap-editor-root',
       },
-      handleClick(view, pos, event) {
+      handleClick(_view, _pos, event) {
         const target = event.target as HTMLElement | null;
-        if (!target) return false;
-
-        // Verify the physical DOM click land target
-        const isClickOnWhisperDOM = target.closest('span[data-type="whisperNode"]');
-        if (!isClickOnWhisperDOM) {
-          return false;
-        }
-
-        const { state } = view;
-        const resolvedPos = state.doc.resolve(pos);
-
-        let isWhisper = false;
-        let whisperAttrs = null;
-
-        // Ensure resolution bounds check up to root depth.
-        // It's possible the click sits directly on an inline node pos or inside its text chunk.
-        for (let depth = resolvedPos.depth; depth >= 0; depth--) {
-          const node = resolvedPos.node(depth);
-          if (node.type.name === 'whisperNode') {
-            isWhisper = true;
-            whisperAttrs = node.attrs;
-            break;
-          }
-        }
-
-        // Specifically check the node directly AT the resolved pos horizontally if the depth check missed
-        const nodeAfter = resolvedPos.nodeAfter;
-        if (!isWhisper && nodeAfter && nodeAfter.type.name === 'whisperNode') {
-          isWhisper = true;
-          whisperAttrs = nodeAfter.attrs;
-        }
-
-        const nodeBefore = resolvedPos.nodeBefore;
-        if (!isWhisper && nodeBefore && nodeBefore.type.name === 'whisperNode') {
-          isWhisper = true;
-          whisperAttrs = nodeBefore.attrs;
-        }
-
-        if (isWhisper && whisperAttrs) {
+        if (target && target.closest('span[data-type="whisperNode"]')) {
           event.preventDefault();
           event.stopPropagation();
-          window.getSelection()?.removeAllRanges();
-          
-          if (sessionKeyRef.current) {
-            // Authorized state: Route to lightweight Popover
-            const rect = target.getBoundingClientRect();
-            setActivePopoverData({
-              coverText: whisperAttrs.coverText,
-              encryptedSecret: whisperAttrs.encryptedSecret,
-              rect
-            });
-            setIsRevealModalOpen(false); // Ensure modal is closed
-          } else {
-            // Unauthorized state: Route to global Reveal Modal for password input
-            setActiveRevealData({
-              coverText: whisperAttrs.coverText,
-              encryptedSecret: whisperAttrs.encryptedSecret
-            });
-            setIsRevealModalOpen(true);
-            setActivePopoverData(null); // Ensure popover is closed
-          }
           return true;
         }
         return false;
       },
-      handlePaste: (view, event) => {
+      handleDOMEvents: {
+        mousedown: (_view, event) => {
+          const target = event.target as HTMLElement | null;
+          const whisperSpan = target?.closest('span[data-type="whisperNode"]');
+          if (whisperSpan) {
+            event.preventDefault(); // Stop iOS keyboard/focus
+            event.stopPropagation();
+            window.getSelection()?.removeAllRanges();
+
+            const coverText = whisperSpan.getAttribute('data-cover');
+            const encryptedSecret = whisperSpan.getAttribute('data-secret');
+
+            if (coverText && encryptedSecret) {
+              if (sessionKeyRef.current) {
+                const rect = whisperSpan.getBoundingClientRect();
+                setActivePopoverData({ coverText, encryptedSecret, rect });
+                setIsRevealModalOpen(false);
+              } else {
+                setActiveRevealData({ coverText, encryptedSecret });
+                setIsRevealModalOpen(true);
+                setActivePopoverData(null);
+              }
+            }
+            return true;
+          }
+          return false;
+        },
+        touchstart: (_view, event) => {
+          const target = event.target as HTMLElement | null;
+          const whisperSpan = target?.closest('span[data-type="whisperNode"]');
+          if (whisperSpan) {
+            event.preventDefault(); // Stop iOS keyboard/focus PRE-click
+            event.stopPropagation();
+            window.getSelection()?.removeAllRanges();
+
+            const coverText = whisperSpan.getAttribute('data-cover');
+            const encryptedSecret = whisperSpan.getAttribute('data-secret');
+
+            if (coverText && encryptedSecret) {
+              if (sessionKeyRef.current) {
+                const rect = whisperSpan.getBoundingClientRect();
+                setActivePopoverData({ coverText, encryptedSecret, rect });
+                setIsRevealModalOpen(false);
+              } else {
+                setActiveRevealData({ coverText, encryptedSecret });
+                setIsRevealModalOpen(true);
+                setActivePopoverData(null);
+              }
+            }
+            return true;
+          }
+          return false;
+        },
+        touchend: (_view, event) => {
+          const target = event.target as HTMLElement | null;
+          if (target && target.closest('span[data-type="whisperNode"]')) {
+            event.preventDefault();
+            event.stopPropagation();
+            return true;
+          }
+          return false;
+        }
+      },
+        handlePaste: (view, event) => {
         const items = event.clipboardData?.items;
         if (!items) return false;
 
@@ -393,9 +398,15 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
     }
   }, [activePopoverData, sessionWhisperKey]);
 
-  // Popover Dismissal (Outside Click)
+  // Popover Dismissal (Outside Click & Lock)
   useEffect(() => {
     if (!activePopoverData) return;
+    
+    // Auto-dismiss if lock state triggers
+    if (!sessionWhisperKey) {
+      setActivePopoverData(null);
+      return;
+    }
     
     const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
       const target = e.target as HTMLElement;
@@ -407,13 +418,14 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
       setActivePopoverData(null);
     };
 
-    document.addEventListener('mousedown', handleOutsideClick);
-    document.addEventListener('touchstart', handleOutsideClick);
+    // Use capturing phase to ensure we beat React's synthetic event bubbling
+    document.addEventListener('mousedown', handleOutsideClick, true);
+    document.addEventListener('touchstart', handleOutsideClick, { passive: true, capture: true });
     return () => {
-      document.removeEventListener('mousedown', handleOutsideClick);
-      document.removeEventListener('touchstart', handleOutsideClick);
+      document.removeEventListener('mousedown', handleOutsideClick, true);
+      document.removeEventListener('touchstart', handleOutsideClick, { capture: true });
     };
-  }, [activePopoverData]);
+  }, [activePopoverData, sessionWhisperKey]);
 
   // Click detection for Whisper Reveal is now handled natively via `handleClick` editorProps
   // Removed old DOM listener hook entirely to avoid propagation conflicts.
@@ -618,17 +630,16 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
       </button>
       <button
         type="button"
-        className={`flex items-center gap-1.5 md:text-xs text-sm font-medium cursor-pointer transition-colors px-3 py-2 min-h-[44px] md:min-h-0 md:px-3 md:py-1.5 rounded-md disabled:opacity-50 ${
-          hasUnsavedChanges 
-            ? 'text-blue-600 md:bg-gray-800 md:text-white md:shadow-sm md:hover:bg-gray-900' 
+        className={`flex items-center gap-1.5 md:text-xs text-sm font-medium cursor-pointer transition-colors px-3 py-2 min-h-[44px] md:min-h-0 md:px-3 md:py-1.5 rounded-md disabled:opacity-50 ${hasUnsavedChanges
+            ? 'text-blue-600 md:bg-gray-800 md:text-white md:shadow-sm md:hover:bg-gray-900'
             : 'text-gray-400 md:text-gray-500 md:hover:text-gray-900 md:hover:bg-gray-100'
-        }`}
+          }`}
         onClick={(e) => { e.preventDefault(); onSave(); }}
         disabled={isSaving || !vaultPassword}
       >
-        <span className="md:hidden">{isSaved ? t('editor.saved') : t('editor.save')}</span>
-        <Save className="w-4 h-4 md:w-3.5 md:h-3.5 hidden md:block" />
-        <span className="hidden md:inline">{isSaved ? t('editor.saved') : t('editor.save')}</span>
+        <span className="md:hidden whitespace-nowrap">{isSaved ? t('editor.saved') : t('editor.save')}</span>
+        <Save className="w-4 h-4 md:w-3.5 md:h-3.5 hidden md:block shrink-0" />
+        <span className="hidden md:inline whitespace-nowrap">{isSaved ? t('editor.saved') : t('editor.save')}</span>
       </button>
     </>
   );
@@ -640,7 +651,7 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
       <div className="hidden md:flex z-10 items-center justify-end gap-2 md:gap-4 w-full md:w-auto md:absolute md:top-10 md:right-10 pt-2 md:pt-0">
         <ActionButtons />
       </div>
-      
+
       {/* 移动端通过 React Portal 将按钮传送到顶部 Header */}
       {mobileHeaderNode && createPortal(
         <div className="flex items-center justify-end gap-1">
@@ -651,25 +662,25 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
 
       {/* 必须先判断 editor 是否存在，再渲染 BubbleMenu */}
       {editor && (
-        <BubbleMenu 
-          editor={editor} 
-          tippyOptions={{ duration: 100 }} 
+        <BubbleMenu
+          editor={editor}
+          tippyOptions={{ duration: 100 }}
           className="flex items-center p-1 space-x-1 bg-white border border-gray-200 shadow-md rounded-lg relative"
           shouldShow={({ state, from, to }) => {
             if (isRevealModalOpen) return false;
-            
+
             // Allow Tiptap state checking
             const { doc, selection } = state;
             const { empty } = selection;
             if (empty) return false;
-            
+
             const text = doc.textBetween(from, to, ' ');
             if (text.trim() === '') return false;
-            
+
             // Extra strictly check DOM selection
             const domSelection = window.getSelection();
             if (!domSelection || domSelection.isCollapsed || domSelection.toString().trim() === '') return false;
-            
+
             return true;
           }}
         >
@@ -768,12 +779,12 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
 
       {/* Editor Content Area */}
       <div className="w-full relative flex-1 h-full md:min-h-[500px] flex flex-col mt-4 md:mt-0 px-4 md:px-0 bg-transparent">
-        <EditorContent 
-          editor={editor} 
-          className="w-full flex-1 focus:outline-none border-none outline-none ring-0 h-full" 
-          onClick={() => editor?.commands.focus()} 
+        <EditorContent
+          editor={editor}
+          className="w-full flex-1 focus:outline-none border-none outline-none ring-0 h-full"
+          onClick={() => editor?.commands.focus()}
         />
-        
+
         {/* Update timestamp */}
         <div className="text-right text-xs md:text-[10px] text-gray-400 mt-12 md:mt-8 pb-12 opacity-50 select-none">
           {t('editor.lastUpdate')} {formatTime(lastSavedTimestamp)}
@@ -1010,39 +1021,43 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
       )}
 
       {/* 密语轻量级解密浮层 Popover (Authorized State) */}
-      {activePopoverData && (
+      {activePopoverData && createPortal(
         <div
-          className="whisper-popover-container fixed z-[60] animate-in fade-in zoom-in-95 duration-150 ease-out"
+          className="whisper-popover-container fixed z-[9999] animate-in fade-in zoom-in-95 duration-150 ease-out"
           style={{
             // Try to place above, if < 200px space, place below
-            top: activePopoverData.rect.top > 200 
-              ? activePopoverData.rect.top - 12 
+            top: activePopoverData.rect.top > 200
+              ? activePopoverData.rect.top - 12
               : activePopoverData.rect.bottom + 12,
             left: Math.min(
-              Math.max(activePopoverData.rect.left + (activePopoverData.rect.width / 2) - 170, 16), 
+              Math.max(activePopoverData.rect.left + (activePopoverData.rect.width / 2) - 170, 16),
               window.innerWidth - 356
             ), // Center above target, prevent overflowing edges
             transform: activePopoverData.rect.top > 200 ? 'translateY(-100%)' : 'none',
           }}
+          onClick={(e) => { e.stopPropagation(); }}
+          onTouchStart={(e) => { e.stopPropagation(); }}
+          onTouchEnd={(e) => { e.stopPropagation(); }}
+          onMouseDown={(e) => { e.stopPropagation(); }}
         >
           {/* Arrow Caret */}
-          <div 
-            className="absolute w-4 h-4 bg-white transform rotate-45 border-r border-b border-gray-100 shadow-[2px_2px_4px_rgba(0,0,0,0.02)]"
+          <div
+            className="absolute w-[14px] h-[14px] bg-white transform rotate-45 z-20"
             style={{
               left: Math.max(
-                16, 
-                activePopoverData.rect.left - Math.max(activePopoverData.rect.left + (activePopoverData.rect.width / 2) - 170, 16) + (activePopoverData.rect.width / 2) - 8
+                16,
+                activePopoverData.rect.left - Math.max(activePopoverData.rect.left + (activePopoverData.rect.width / 2) - 170, 16) + (activePopoverData.rect.width / 2) - 7
               ) + 'px',
-              ...(activePopoverData.rect.top > 200 
-                ? { bottom: '-8px' } // Pointing down
-                : { top: '-8px', borderRight: 'none', borderBottom: 'none', borderLeft: '1px solid #f3f4f6', borderTop: '1px solid #f3f4f6', boxShadow: '-2px -2px 4px rgba(0,0,0,0.02)' } // Pointing up
+              ...(activePopoverData.rect.top > 200
+                ? { bottom: '-7px', borderRight: '1px solid rgb(243 244 246 / 0.8)', borderBottom: '1px solid rgb(243 244 246 / 0.8)' } // Pointing down
+                : { top: '-7px', borderLeft: '1px solid rgb(243 244 246 / 0.8)', borderTop: '1px solid rgb(243 244 246 / 0.8)' } // Pointing up
               )
             }}
           />
 
-          <div className="bg-white border border-gray-100/80 shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-2xl p-6 w-[340px] max-h-64 flex flex-col gap-3 relative z-10">
+          <div className="bg-white border border-gray-100/80 shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-2xl p-4 md:p-6 w-[calc(100vw-32px)] md:w-[340px] max-w-[340px] max-h-64 flex flex-col gap-2 md:gap-3 relative z-10">
             <button
-              className="absolute top-4 right-4 p-1.5 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-md transition-colors"
+              className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-md transition-colors"
               onClick={() => {
                 setActivePopoverData(null);
                 setPopoverCopied(false);
@@ -1051,11 +1066,11 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
             >
               <X className="w-4 h-4" />
             </button>
-            
+
             <div className="text-xs font-medium text-zinc-500 uppercase tracking-wider pr-6">
               {activePopoverData.coverText}
             </div>
-            
+
             <div className="flex-1 overflow-y-auto pr-1">
               {isPopoverDecrypting ? (
                 <div className="flex items-center gap-2 text-sm text-zinc-400 py-2">
@@ -1086,7 +1101,8 @@ export function ZenEditor({ activeDoc, documents, vaultPassword = '', sessionWhi
               ) : null}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

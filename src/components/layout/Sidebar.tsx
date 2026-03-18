@@ -19,9 +19,9 @@ export function Sidebar({ isMobileMenuOpen, onLock, onOpenSettings, documents, a
 
   return (
     <aside className={`
-      fixed inset-y-0 left-0 z-50 w-64 bg-[#F8F9FA] dark:bg-zinc-900 border-r border-gray-200 dark:border-zinc-800 flex flex-col h-full
-      transform transition-transform duration-300 ease-in-out
-      md:relative md:translate-x-0 
+      fixed inset-y-0 left-0 z-50 w-64 bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col h-full
+      transform transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none
+      md:relative md:translate-x-0 pt-[max(env(safe-area-inset-top),1rem)]
       ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
     `}>
       {/* 顶部区域 Header */}
@@ -76,10 +76,10 @@ export function Sidebar({ isMobileMenuOpen, onLock, onOpenSettings, documents, a
       </div>
 
       {/* 底部控制区 Bottom Controls */}
-      <div className="p-4 border-t border-gray-200 flex flex-col gap-2">
+      <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 flex flex-col gap-2 pb-[max(env(safe-area-inset-bottom),1rem)]">
         <button 
           type="button"
-          className="flex items-center gap-3 w-full text-left px-3 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+          className="flex items-center gap-3 w-full text-left px-3 py-2 min-h-[48px] text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
           onClick={onOpenSettings}
         >
           <Settings className="w-4 h-4" />
@@ -87,7 +87,7 @@ export function Sidebar({ isMobileMenuOpen, onLock, onOpenSettings, documents, a
         </button>
         <button 
           type="button"
-          className="flex items-center gap-3 w-full text-left px-3 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+          className="flex items-center gap-3 w-full text-left px-3 py-2 min-h-[48px] text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
           onClick={onLock}
         >
           <Lock className="w-4 h-4" />

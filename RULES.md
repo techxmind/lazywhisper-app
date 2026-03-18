@@ -21,3 +21,20 @@
   * 严禁在视图层（JSX/TSX）硬编码任何用户可见的文本串。所有文案变更必须通过多语言键值对（i18n keys）动态映射。
 * **Strict Type Safety**: 
   * 禁用 `any`。所有组件 Props、API 响应、IPC 通信负载必须拥有明确的 TypeScript Interface 定义。
+
+## 4. Mobile-First & Touch UI Verification (移动端优先与触控验证)
+
+为了确保 UI 在 iOS/Android 端的绝对可靠性，在生成任何新的交互组件（特别是浮层、菜单、按钮）时，必须在内心执行以下自检，并在代码中落实：
+
+- **原则 1：无 Hover 依赖 (Zero Hover Fallback)**。移动端没有鼠标。任何重要的信息或操作（如 Tooltip、Popover），绝对禁止仅通过 `hover` 触发，必须有明确的 `onClick` 或长按触控替代方案。
+- **原则 2：浮动元素必须 Portal 逃逸 (Portal Everything Floating)**。所有的 Dropdown Menu、Popover、Tooltip，**必须使用 React Portal 渲染到 `document.body`**。严禁就地渲染，防止被移动端复杂的 `overflow: hidden` 或 Transform 上下文意外裁剪。
+- **原则 3：触控区尺寸下限 (Touch Targets Min-Size)**。任何可点击的图标、按钮，在移动端断点下，其视觉大小或透明的内边距 (`p-`) 必须保证最小 44x44 像素的触控热区，防止误触。
+- **原则 4：幽灵点击防御 (Ghost Click & Bubbling)**。在处理自定义的 `Click-Outside` 逻辑时，必须同时监听 `touchstart`。在移动端触发弹窗的按钮上，必须注意拦截冒泡，防止“打开即关闭”的闪退 Bug。
+
+## 5. Rich Text & Nested Interactivity (富文本与内嵌交互防坑)
+
+在基于 `contentEditable` 的编辑器内开发任何“可点击的内嵌交互元素（如密语块、标签、提及）”时，必须严格遵守以下隔离规范：
+
+- **局部不可编辑声明**：内嵌交互块的根节点必须明确声明 `contentEditable={false}`，将其从编辑器的输入流中剥离，防止移动端误弹键盘。
+- **事件绝对阻断**：任何挂载在内嵌块上的触发事件（Click/PointerDown），必须在第一行同时执行 `e.preventDefault()` 和 `e.stopPropagation()`，彻底切断与父级编辑器的焦点争夺。
+- **触控热区与响应声明**：非 `<button>` 或 `<a>` 的自定义点击元素，必须加上 `cursor: pointer` 以确保 iOS Safari 的 Click 引擎不掉帧，并利用 `inline-block` 与 `padding` 适度放大触控面积。

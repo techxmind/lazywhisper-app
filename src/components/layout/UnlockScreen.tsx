@@ -99,9 +99,9 @@ export function UnlockScreen({ onUnlock, onCreate, isVaultExists, error }: Unloc
   };
 
   return (
-    <div className="fixed inset-0 bg-white flex flex-col items-center justify-center z-[99999]">
-      <div className="w-full max-w-sm flex flex-col items-center gap-8">
-        <div className="flex flex-col items-center gap-3">
+    <div className="fixed inset-0 bg-white flex flex-col items-center justify-center z-[99999] pt-[max(env(safe-area-inset-top),1rem)]">
+      <div className="w-full max-w-xs md:max-w-sm px-6 mx-auto flex flex-col items-center">
+        <div className="flex flex-col items-center gap-3 mb-10">
           <div className="flex items-center gap-3">
             <img src="/logo.png" alt="LazyWhisper Logo" className="h-10 w-10 opacity-90" />
             <h1 className="text-xl font-bold text-gray-800 tracking-wide">
@@ -111,14 +111,14 @@ export function UnlockScreen({ onUnlock, onCreate, isVaultExists, error }: Unloc
           {!isVaultExists && (<h2 className="text-sm font-medium text-gray-500"> {t('unlock.createTitle')}</h2>)}
         </div>
 
-        <form onSubmit={handleSubmit} className="w-full flex w-full flex-col gap-2">
+        <form onSubmit={handleSubmit} className="w-full flex flex-col gap-2">
           <input
             ref={inputRef}
             type="password"
             placeholder={t('unlock.placeholder')}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base md:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow text-center tracking-widest disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+            className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow text-center tracking-widest disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
             disabled={!!lockoutEndTime || newerVersionError}
           />
           {!isVaultExists && (
@@ -127,7 +127,7 @@ export function UnlockScreen({ onUnlock, onCreate, isVaultExists, error }: Unloc
               placeholder={t('unlock.confirmPlaceholder')}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base md:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow text-center tracking-widest mt-1"
+              className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow text-center tracking-widest mt-1"
             />
           )}
 

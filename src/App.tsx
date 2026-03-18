@@ -602,8 +602,8 @@ function App() {
           <main className="flex-1 flex flex-col h-full relative overflow-hidden bg-white dark:bg-zinc-950">
             {/* 移动端顶部 Header (Native Look) */}
             <header className="md:hidden pt-[max(env(safe-area-inset-top),1rem)] border-b border-zinc-200/50 dark:border-zinc-800/50 flex flex-col bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md z-10 shrink-0">
-              <div className="h-14 px-2 flex items-center justify-between">
-                <div className="flex items-center w-16">
+              <div className="relative h-14 px-2 flex items-center justify-between">
+                <div className="flex items-center min-w-[4rem] z-10">
                   <button 
                     type="button" 
                     onClick={() => setIsMobileMenuOpen(true)} 
@@ -616,13 +616,13 @@ function App() {
                   </button>
                 </div>
                 
-                <div className="flex-1 flex justify-center">
-                  <span className="font-semibold text-base text-zinc-900 dark:text-zinc-100">
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+                  <span className="font-semibold text-base text-zinc-900 dark:text-zinc-100 truncate px-16">
                     {t('sidebar.brand') || 'LazyWhisper'}
                   </span>
                 </div>
 
-                <div className="flex items-center justify-end w-16" id="mobile-header-actions">
+                <div className="flex items-center justify-end min-w-[4rem] z-10" id="mobile-header-actions">
                   {/* ZenEditor buttons will render here via React Portal */}
                 </div>
               </div>

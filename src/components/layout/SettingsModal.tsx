@@ -101,11 +101,30 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20">
-      <div className="bg-white border border-gray-200 rounded-md w-full max-w-[480px] p-6 flex flex-col gap-6">
-        <div>
+    <div className="fixed inset-0 z-50 flex flex-col bg-zinc-50 md:bg-black/20 md:items-center md:justify-center md:p-4">
+      <div className="w-full h-full md:max-w-[480px] md:h-auto md:bg-white md:border md:border-gray-200 md:rounded-md flex flex-col overflow-hidden">
+        
+        {/* Mobile Native Header */}
+        <div className="md:hidden flex items-center justify-between px-4 pb-2 border-b border-gray-200 bg-white shadow-sm shrink-0 pt-[max(env(safe-area-inset-top),1rem)] select-none">
+          <div className="w-16"></div>
+          <h3 className="text-[17px] font-semibold text-gray-900 tracking-tight">{t('settings.title')}</h3>
+          <div className="w-16 flex justify-end">
+            <button
+              className="text-gray-900 font-semibold text-[17px] active:opacity-50 transition-opacity"
+              onClick={onClose}
+            >
+              {t('settings.doneBtn')}
+            </button>
+          </div>
+        </div>
+
+        {/* Desktop Header */}
+        <div className="hidden md:block p-6 pb-2 shrink-0">
           <h3 className="text-lg font-light text-gray-900">{t('settings.title')}</h3>
         </div>
+
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 md:p-6 bg-zinc-50 md:bg-white flex flex-col gap-6 md:gap-6 pb-[calc(max(env(safe-area-inset-bottom),1rem)+2rem)] md:pb-6">
+
 
         <div className="flex flex-col gap-2">
           <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{t('settings.spacePath')}</label>
@@ -201,7 +220,7 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
           </div>
         </div>
 
-        <div className="flex justify-end border-t border-gray-100 mt-6 pt-4">
+        <div className="hidden md:flex justify-end border-t border-gray-100 mt-2 pt-4 shrink-0 px-6 pb-6">
           <button
             className="bg-gray-800 min-h-[44px] hover:bg-gray-900 text-white px-6 py-3 md:py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"
             onClick={onClose}
@@ -210,10 +229,12 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
           </button>
         </div>
 
-        <div className="mt-0 border-gray-100 flex flex-col items-center justify-center">
+        <div className="mt-8 md:mt-0 border-gray-100 flex flex-col items-center justify-center shrink-0 mb-4 md:mb-0">
           <div className="text-sm font-semibold text-gray-700">{t('window.title')}</div>
           <div className="text-xs text-gray-400 mt-1">{t('settings.version')} {appVersion} {t('settings.cryptoEngine')}</div>
         </div>
+        
+        </div> {/* End of scrollable area */}
       </div>
 
       {/* Password Sub-Modal */}
@@ -234,7 +255,7 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
                 spellCheck="false"
                 autoCorrect="off"
                 autoCapitalize="off"
-                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base md:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
+                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
                 autoFocus
               />
               <input
@@ -245,7 +266,7 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
                 spellCheck="false"
                 autoCorrect="off"
                 autoCapitalize="off"
-                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base md:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
+                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
               />
               <input
                 type="password"
@@ -255,7 +276,7 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
                 spellCheck="false"
                 autoCorrect="off"
                 autoCapitalize="off"
-                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base md:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
+                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow tracking-widest"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleUpdatePassword();
                 }}
