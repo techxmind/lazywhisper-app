@@ -115,6 +115,10 @@ const resources = {
       'reveal.decryptFailed': 'Decryption failed',
       'reveal.decrypting': 'Decrypting...',
       'whisper.encryptionFailed': 'Encryption failed',
+      'editor.findPlaceholder': 'Find in page...',
+      'editor.findPrev': 'Previous match',
+      'editor.findNext': 'Next match',
+      'editor.findClose': 'Close search',
     },
   },
   zh: {
@@ -230,6 +234,10 @@ const resources = {
       'reveal.decryptFailed': '解密失败',
       'reveal.decrypting': '解密中...',
       'whisper.encryptionFailed': '加密失败',
+      'editor.findPlaceholder': '在页面中查找...',
+      'editor.findPrev': '上一个匹配',
+      'editor.findNext': '下一个匹配',
+      'editor.findClose': '关闭查找',
     },
   },
 };

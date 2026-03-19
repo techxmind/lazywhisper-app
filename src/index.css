@@ -130,3 +130,25 @@
   border-bottom-color: #52525b; /* zinc-600 */
 }
 
+/* Search & Replace — Match Highlights */
+.search-result {
+  background-color: #fef08a; /* yellow-200 */
+  border-radius: 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.search-result-current {
+  background-color: #facc15; /* yellow-400 */
+  outline: 2px solid #eab308; /* yellow-500 */
+  outline-offset: -1px;
+}
+
+/* Search & Replace — Dark Mode */
+.dark .search-result {
+  background-color: rgba(161, 98, 7, 0.35); /* yellow-700/35 */
+}
+.dark .search-result-current {
+  background-color: rgba(202, 138, 4, 0.55); /* yellow-600/55 */
+  outline-color: #ca8a04; /* yellow-600 */
+}
+

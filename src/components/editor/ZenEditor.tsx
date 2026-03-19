@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Share, Save, Bold, Italic, Lock, Highlighter, Palette, Image as ImageIcon, AlertCircle, X, Copy, Check } from 'lucide-react';
+import { Share, Save, Bold, Italic, Lock, Highlighter, Palette, Image as ImageIcon, AlertCircle, X, Copy, Check, ChevronUp, ChevronDown, Search } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { hashKey } from '../../utils/crypto';
 import { VaultDocument } from '../../App';
@@ -16,6 +16,7 @@ import Highlight from '@tiptap/extension-highlight';
 import Image from '@tiptap/extension-image';
 import { Slice, Fragment, DOMParser as PMDOMParser } from '@tiptap/pm/model';
 import { WhisperNode } from '../../core/tiptap/WhisperExtension';
+import { SearchAndReplace } from '../../core/tiptap/SearchAndReplace';
 
 function formatTime(timestamp: number): string {
   if (!timestamp) return '';
@@ -65,6 +66,11 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
   const [exportScope, setExportScope] = useState<'note' | 'space'>('note');
   const [exportPassword, setExportPassword] = useState('');
   const [isExporting, setIsExporting] = useState(false);
+
+  // --- Find in Page State ---
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchTerm, setSearchTermState] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [exportSuccess, setExportSuccess] = useState(false);
 
   // Modal AutoFocus Refs
@@ -161,6 +167,10 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
   const editor = useEditor({
     extensions: [
       StarterKit,
+      SearchAndReplace.configure({
+        searchResultClass: 'search-result',
+        disableRegex: true,
+      }),
       WhisperNode,
       TextStyle,
       Color,
@@ -527,11 +537,34 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
   // Click detection for Whisper Reveal is now handled natively via `handleClick` editorProps
   // Removed old DOM listener hook entirely to avoid propagation conflicts.
 
+  // --- Find in Page: close handler ---
+  const closeSearch = useCallback(() => {
+    setIsSearchOpen(false);
+    setSearchTermState('');
+    if (editor && !editor.isDestroyed) {
+      editor.commands.setSearchTerm('');
+    }
+  }, [editor]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl + F → Open Find in Page
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsSearchOpen(true);
+        setTimeout(() => {
+          searchInputRef.current?.focus();
+          searchInputRef.current?.select();
+        }, 50);
+        return;
+      }
+
       // Global ESC
       if (e.key === 'Escape') {
-        if (isRevealModalOpen) {
+        if (isSearchOpen) {
+          closeSearch();
+        } else if (isRevealModalOpen) {
           handleCloseRevealModal();
         } else if (activePopoverData) {
           setActivePopoverData(null);
@@ -543,9 +576,9 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isRevealModalOpen, isExportModalOpen, isModalOpen, activePopoverData]);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isRevealModalOpen, isExportModalOpen, isModalOpen, activePopoverData, isSearchOpen, closeSearch]);
 
   if (!editor) {
     return null;
@@ -891,6 +924,87 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
       {/* Editor Content Area */}
       <div className="w-full relative flex-1 h-full md:min-h-[500px] flex flex-col mt-4 md:mt-0 px-4 md:px-0 bg-transparent">
+
+        {/* Find in Page Floating Panel */}
+        <AnimatePresence>
+          {isSearchOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.15 }}
+              className="absolute top-3 right-3 z-50 flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-lg rounded-lg px-3 py-2"
+            >
+              <Search className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500 shrink-0" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchTerm}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSearchTermState(val);
+                  if (editor && !editor.isDestroyed) {
+                    editor.commands.setSearchTerm(val);
+                    editor.commands.resetIndex();
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (e.shiftKey) {
+                      editor?.commands.previousSearchResult();
+                    } else {
+                      editor?.commands.nextSearchResult();
+                    }
+                  }
+                }}
+                placeholder={t('editor.findPlaceholder')}
+                className="w-36 md:w-44 text-sm bg-transparent text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none"
+                spellCheck="false"
+                autoCorrect="off"
+                autoCapitalize="off"
+              />
+
+              {/* Match counter */}
+              <span className="text-[11px] text-zinc-400 dark:text-zinc-500 tabular-nums whitespace-nowrap min-w-[3ch] text-center select-none">
+                {searchTerm && editor
+                  ? `${editor.storage.searchAndReplace.results.length > 0 ? editor.storage.searchAndReplace.resultIndex + 1 : 0}/${editor.storage.searchAndReplace.results.length}`
+                  : ''}
+              </span>
+
+              {/* Prev / Next */}
+              <button
+                type="button"
+                onClick={() => editor?.commands.previousSearchResult()}
+                className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors disabled:opacity-30"
+                disabled={!searchTerm || !editor?.storage.searchAndReplace.results.length}
+                title={t('editor.findPrev')}
+              >
+                <ChevronUp className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => editor?.commands.nextSearchResult()}
+                className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors disabled:opacity-30"
+                disabled={!searchTerm || !editor?.storage.searchAndReplace.results.length}
+                title={t('editor.findNext')}
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Close */}
+              <button
+                type="button"
+                onClick={closeSearch}
+                className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+                title={t('editor.findClose')}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <EditorContent
           editor={editor}
           className="w-full flex-1 focus:outline-none border-none outline-none ring-0 h-full"
