@@ -163,6 +163,17 @@ fn load_vault(filename: String, password: String) -> Result<String, String> {
     Ok(result)
 }
 
+/// Import a vault file: decrypt with the given password but do NOT cache the password.
+/// This is used for importing external .wspace files without overwriting the current session.
+#[tauri::command]
+fn import_vault(filename: String, password: String) -> Result<String, String> {
+    let file_path = sanitize_vault_path(&filename)?;
+    let data = fs::read(&file_path).map_err(|e| sanitize_io_error("Failed to read vault", &e))?;
+    // Wrap in Zeroizing so the password is overwritten on drop — never lingering in heap
+    let password_z = Zeroizing::new(password);
+    parse_and_decrypt_bytes(&data, &password_z)
+}
+
 /// Cache the master password in Rust memory (called during vault creation).
 /// The frontend passes the password once, then forgets it.
 #[tauri::command]
@@ -372,6 +383,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             save_vault,
             load_vault,
+            import_vault,
             export_shared_file,
             check_vault_exists,
             encrypt_secret,

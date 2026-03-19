@@ -428,6 +428,32 @@ function App() {
     return success;
   };
 
+  const handleImportDocs = async (newDocs: VaultDocument[]) => {
+    setDocuments(prev => [...newDocs, ...prev]);
+    setUnsavedDocIds(prev => {
+      const next = new Set(prev);
+      newDocs.forEach(d => next.add(d.id));
+      return next;
+    });
+    // Immediate save after importing
+    // Wait one tick for state to flush, then save via ref
+    setTimeout(async () => {
+      const { vaultPath, documents: currentDocs } = autoLockRef.current;
+      if (vaultPath) {
+        const allDocs = [...newDocs, ...currentDocs];
+        setIsSaving(true);
+        const success = await saveCurrentVault(allDocs, vaultPath);
+        setIsSaving(false);
+        if (success) {
+          setLastSavedTimestamp(Date.now());
+          setIsSaved(true);
+          setUnsavedDocIds(new Set());
+          setTimeout(() => setIsSaved(false), 2000);
+        }
+      }
+    }, 50);
+  };
+
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
@@ -693,6 +719,8 @@ function App() {
                   lastSavedTimestamp={lastSavedTimestamp}
                   editorFocusTrigger={editorFocusTrigger}
                   editorInstanceRef={editorInstanceRef}
+                  onImportDocs={handleImportDocs}
+                  currentVaultPath={vaultPath}
                 />
               ) : (
                 <div className="flex items-center justify-center p-20 text-gray-400">
