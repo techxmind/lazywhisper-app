@@ -106,3 +106,99 @@ pub fn decrypt_v1(data: &[u8], password: &Zeroizing<String>) -> Result<Zeroizing
 
     Ok(Zeroizing::new(plaintext))
 }
+
+/// Encrypt data with Zstd compression + AES-256-GCM (v2 pipeline).
+/// Cryptographic order: compress FIRST, encrypt SECOND.
+/// Input: plaintext, password
+/// Output: salt (32 bytes) + nonce (12 bytes) + ciphertext(of compressed data)
+pub fn encrypt_v2(
+    plaintext: &Zeroizing<String>,
+    password: &Zeroizing<String>,
+) -> Result<Vec<u8>, String> {
+    // 1. Compress plaintext with zstd (level 3 = balanced speed/ratio)
+    let mut compressed = zstd::stream::encode_all(plaintext.as_bytes(), 3)
+        .map_err(|e| format!("Compression failed: {}", e))?;
+
+    // 2. Generate random salt
+    let mut salt = [0u8; SALT_LEN];
+    OsRng.fill_bytes(&mut salt);
+
+    // 3. Derive key
+    let key = derive_key(password, &salt)?;
+
+    // 4. Setup cipher
+    let cipher = Aes256Gcm::new(key.as_ref().into());
+
+    // 5. Generate random nonce
+    let mut nonce_bytes = [0u8; 12];
+    OsRng.fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
+
+    // 6. Encrypt the compressed data
+    let encrypt_result = cipher.encrypt(nonce, compressed.as_ref());
+
+    // Zeroize the compressed intermediate immediately
+    compressed.zeroize();
+
+    let mut ciphertext = encrypt_result
+        .map_err(|e| format!("Encryption failed: {}", e))?;
+
+    // 7. Combine salt + nonce + ciphertext
+    let mut result = Vec::with_capacity(salt.len() + nonce_bytes.len() + ciphertext.len());
+    result.extend_from_slice(&salt);
+    result.extend_from_slice(&nonce_bytes);
+    result.extend_from_slice(&ciphertext);
+
+    ciphertext.zeroize();
+
+    Ok(result)
+}
+
+/// Decrypt data with AES-256-GCM + Zstd decompression (v2 pipeline).
+/// Input: combined bytes (salt + nonce + ciphertext), password
+/// Output: Decrypted and decompressed plaintext string
+pub fn decrypt_v2(data: &[u8], password: &Zeroizing<String>) -> Result<Zeroizing<String>, String> {
+    if data.len() < SALT_LEN + 12 {
+        return Err("Data too short".into());
+    }
+
+    // 1. Extract salt, nonce, ciphertext
+    let (salt, rest) = data.split_at(SALT_LEN);
+    let (nonce_bytes, ciphertext) = rest.split_at(12);
+
+    // 2. Derive key
+    let key = derive_key(password, salt)?;
+
+    // 3. Decrypt
+    let nonce = Nonce::from_slice(nonce_bytes);
+    let cipher = Aes256Gcm::new(key.as_ref().into());
+
+    let mut compressed = cipher
+        .decrypt(nonce, ciphertext)
+        .map_err(|_| "Decryption failed: Incorrect password or corrupted data".to_string())?;
+
+    // 4. Decompress
+    let decompressed_result = zstd::stream::decode_all(compressed.as_slice());
+
+    // Zeroize compressed intermediate regardless of outcome
+    compressed.zeroize();
+
+    let mut decompressed = decompressed_result
+        .map_err(|e| {
+            format!("Decompression failed: {}", e)
+        })?;
+
+    // 5. Convert to String
+    let plaintext = String::from_utf8(decompressed.clone())
+        .map_err(|e| {
+            let mut failed_bytes = e.into_bytes();
+            failed_bytes.zeroize();
+            decompressed.zeroize();
+            "Invalid UTF-8 sequence".to_string()
+        })?;
+
+    decompressed.zeroize();
+
+    Ok(Zeroizing::new(plaintext))
+}
+

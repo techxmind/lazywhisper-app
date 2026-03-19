@@ -8,7 +8,7 @@ use std::sync::Mutex;
 use tauri::{Manager, Emitter};
 use zeroize::Zeroizing;
 
-const CURRENT_CRYPTO_VERSION: &str = "v1";
+const CURRENT_CRYPTO_VERSION: &str = "v2";
 
 static PENDING_PATHS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
@@ -105,7 +105,7 @@ fn save_vault(filename: String, content: String) -> Result<bool, String> {
     let content_z = Zeroizing::new(content);
 
     // Encrypt using current version
-    let mut encrypted_bytes = crypto::encrypt_v1(&content_z, &password_z)?;
+    let mut encrypted_bytes = crypto::encrypt_v2(&content_z, &password_z)?;
 
     // Envelope for binary: v1:CIPHERTEXT
     let mut payload = format!("{}:", CURRENT_CRYPTO_VERSION).into_bytes();
@@ -134,6 +134,10 @@ pub fn parse_and_decrypt_bytes(data: &[u8], password: &str) -> Result<String, St
     };
 
     match version {
+        "v2" => {
+            let plaintext_z = crypto::decrypt_v2(payload, &password_z)?;
+            Ok(plaintext_z.as_str().to_string())
+        },
         "v1" | "legacy_v1" => {
             let plaintext_z = crypto::decrypt_v1(payload, &password_z)?;
             Ok(plaintext_z.as_str().to_string())
@@ -194,7 +198,7 @@ fn change_vault_password(filename: String, old_password: String, new_password: S
     let new_password_z = Zeroizing::new(new_password);
     let content_z = Zeroizing::new(content);
 
-    let mut encrypted_bytes = crypto::encrypt_v1(&content_z, &new_password_z)?;
+    let mut encrypted_bytes = crypto::encrypt_v2(&content_z, &new_password_z)?;
     let mut payload = format!("{}:", CURRENT_CRYPTO_VERSION).into_bytes();
     payload.append(&mut encrypted_bytes);
 
@@ -219,7 +223,7 @@ fn export_shared_file(
     let content_z = Zeroizing::new(content);
 
     // Encrypt
-    let mut encrypted_bytes = crypto::encrypt_v1(&content_z, &password_z)?;
+    let mut encrypted_bytes = crypto::encrypt_v2(&content_z, &password_z)?;
 
     let mut payload = format!("{}:", CURRENT_CRYPTO_VERSION).into_bytes();
     payload.append(&mut encrypted_bytes);
@@ -241,8 +245,7 @@ fn encrypt_secret(plaintext: String, key: String) -> Result<String, String> {
     let key_z = Zeroizing::new(key);
     let encrypted_bytes = crypto::encrypt_v1(&plain_z, &key_z)?;
     Ok(format!(
-        "{}:{}",
-        CURRENT_CRYPTO_VERSION,
+        "v1:{}",
         STANDARD.encode(encrypted_bytes)
     ))
 }
@@ -262,6 +265,12 @@ pub fn parse_and_decrypt_string(ciphertext: &str, key: &str) -> Result<String, S
     };
 
     match version {
+        "v2" => {
+            let encrypted_bytes = STANDARD.decode(b64_data)
+                .map_err(|e| format!("Invalid Base64 format: {}", e))?;
+            let plain_z = crypto::decrypt_v2(&encrypted_bytes, &key_z)?;
+            Ok(plain_z.as_str().to_string())
+        },
         "v1" | "legacy_v1" => {
             let encrypted_bytes = STANDARD.decode(b64_data)
                 .map_err(|e| format!("Invalid Base64 format: {}", e))?;
@@ -464,8 +473,8 @@ mod tests {
         assert!(err_msg.contains("ERROR_NEWER_VERSION"));
 
         // Do identically for raw binary vectors
-        let fake_v2_bytes = b"v2:SomeBinaryData";
-        let result_bytes = parse_and_decrypt_bytes(fake_v2_bytes, password);
+        let fake_v3_bytes = b"v3:SomeBinaryData";
+        let result_bytes = parse_and_decrypt_bytes(fake_v3_bytes, password);
         assert!(result_bytes.is_err());
         assert!(result_bytes.unwrap_err().contains("ERROR_NEWER_VERSION"));
     }
@@ -521,5 +530,61 @@ mod tests {
 
         // Garbage collect
         let _ = fs::remove_file(full_path);
+    }
+
+    // Case F (v2 压缩加密闭环)
+    #[test]
+    fn test_case_f_v2_round_trip() {
+        let password = "v2_test_password";
+        let plaintext = r#"[{"id":"1","title":"Test","content":"<p>Hello v2 compressed world!</p>"}]"#;
+
+        let password_z = Zeroizing::new(password.to_string());
+        let plain_z = Zeroizing::new(plaintext.to_string());
+
+        // Encrypt with v2
+        let encrypted_bytes = crypto::encrypt_v2(&plain_z, &password_z).unwrap();
+
+        // Decrypt with v2
+        let decrypted_z = crypto::decrypt_v2(&encrypted_bytes, &password_z).unwrap();
+        assert_eq!(decrypted_z.as_str(), plaintext);
+    }
+
+    // Case G (v2 文件 I/O + v1 旧文件向后兼容)
+    #[test]
+    fn test_case_g_v2_file_io_and_v1_backward_compat() {
+        let password = "compat_password";
+        let content = r#"[{"id":"1","title":"Compat","content":"Backward compatible"}]"#;
+
+        let temp_dir = std::env::temp_dir();
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_micros();
+
+        // --- Write v2 file, read back ---
+        let v2_path = temp_dir.join(format!("test_v2_{}.wspace", ts));
+        let v2_str = v2_path.to_str().unwrap().to_string();
+        let save_res = export_shared_file(v2_str.clone(), password.to_string(), content.to_string());
+        assert!(save_res.is_ok());
+        let v2_data = fs::read(&v2_path).unwrap();
+        assert!(v2_data.starts_with(b"v2:"));
+        let decrypted_v2 = parse_and_decrypt_bytes(&v2_data, password).unwrap();
+        assert_eq!(decrypted_v2, content);
+
+        // --- Write a v1 file manually, verify load still works ---
+        let v1_path = temp_dir.join(format!("test_v1_{}.wspace", ts));
+        let password_z = Zeroizing::new(password.to_string());
+        let content_z = Zeroizing::new(content.to_string());
+        let mut v1_enc = crypto::encrypt_v1(&content_z, &password_z).unwrap();
+        let mut v1_payload = b"v1:".to_vec();
+        v1_payload.append(&mut v1_enc);
+        fs::write(&v1_path, &v1_payload).unwrap();
+        let v1_data = fs::read(&v1_path).unwrap();
+        let decrypted_v1 = parse_and_decrypt_bytes(&v1_data, password).unwrap();
+        assert_eq!(decrypted_v1, content);
+
+        // Cleanup
+        let _ = fs::remove_file(v2_path);
+        let _ = fs::remove_file(v1_path);
     }
 }
