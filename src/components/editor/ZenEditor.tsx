@@ -188,7 +188,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       }),
     ],
     content: activeDoc.content,
-    autofocus: 'end',
+    autofocus: false,
     onUpdate: ({ editor: currentEditor }) => {
       const firstLineText = currentEditor.state.doc.firstChild?.textContent;
       localTitleRef.current = firstLineText ? firstLineText.trim() : t('sidebar.untitled');
@@ -404,15 +404,18 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       }
       localTitleRef.current = activeDoc.title || t('sidebar.untitled');
 
-      // Guarantee AutoFocus always jumps to the end of the text ONLY on a hard Doc Swap
+      // Content-aware AutoFocus: only focus empty (new) documents
       if (prevDocIdRef.current !== activeDoc.id) {
         prevDocIdRef.current = activeDoc.id;
-        const timer = setTimeout(() => {
-          if (!editor.isDestroyed) {
-            editor.commands.focus('end');
-          }
-        }, 50);
-        return () => clearTimeout(timer);
+        const contentIsEmpty = !activeDoc.content || activeDoc.content === '<p></p>' || activeDoc.content === '';
+        if (contentIsEmpty) {
+          const timer = setTimeout(() => {
+            if (!editor.isDestroyed) {
+              editor.commands.focus('end');
+            }
+          }, 50);
+          return () => clearTimeout(timer);
+        }
       }
     }
   }, [activeDoc.id, editor, activeDoc.content, activeDoc.title, t]); // rely on doc ID swap

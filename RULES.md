@@ -50,3 +50,13 @@
 ## 8. Cryptographic Memory Hygiene (密码学内存卫生)
 - **阅后即焚 (Zeroization)**：任何包含用户密码、临时解密密钥的变量（如 React State, ref），在完成加密/解密计算后，或在鉴权 Modal 卸载 (Unmount) 时，必须显式清空（赋值为 `''` 或重置状态）。绝对禁止明文密码在内存中无限期驻留。
 - **无痕日志 (Silent Logs)**：严禁在前端代码和 Rust 后端代码中 `console.log` 或 `println!` 任何密钥、密文负载、文件绝对路径。如果为了调试必须打印，必须在提交前删除。
+
+## 9. Strict Internationalization (i18n) Enforcement (强制多语言与去硬编码规范)
+
+作为一款全球化的产品，所有面向用户展示的文本（User-Facing Text）必须严格遵守国际化规范：
+
+- **绝对禁止硬编码 (Zero Hardcoded Strings)**：在任何 React 组件（如页面、模态框、气泡、侧边栏）、Tauri Rust 后端返回的业务提示，甚至 GitHub Actions 的发版日志中，**绝对禁止**直接写入英文或中文的纯文本字符串。
+- **强制使用翻译机制**：
+  - 前端组件必须通过统一的 i18n Hook（如 `useTranslation`, `t()` 等）获取文案。
+  - 新增任何功能（如搜索框的 Placeholder、按钮文本、空状态提示、报错 Toast），必须同步在对应的语言字典文件（如 `en.json`, `zh.json` 等）中补充 key-value 映射。
+- **全面覆盖盲区**：不仅是主文本，翻译范围必须强制覆盖：`placeholder`、`<img alt="">`、`aria-label`、工具提示 (`Tooltip`) 以及各类校验失败的错误信息。
