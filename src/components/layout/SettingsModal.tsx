@@ -82,19 +82,19 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
     setPasswordSuccess('');
 
     if (!oldPassword || !newPassword || !confirmPassword) {
-      setPasswordError('All password fields are required.');
+      setPasswordError(t('settings.pwdRequired'));
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setPasswordError('New passwords do not match.');
+      setPasswordError(t('settings.pwdMismatch'));
       return;
     }
 
     setIsUpdatingPassword(true);
     try {
       await onChangePassword(oldPassword, newPassword);
-      setPasswordSuccess('Password successfully updated.');
+      setPasswordSuccess(t('settings.pwdSuccess'));
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -103,7 +103,7 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
         setIsPasswordModalOpen(false); // auto close the sub-modal
       }, 1500);
     } catch (e: any) {
-      setPasswordError(e.message || 'Failed to update password.');
+      setPasswordError(e.message || t('settings.pwdFailed'));
     } finally {
       setIsUpdatingPassword(false);
     }

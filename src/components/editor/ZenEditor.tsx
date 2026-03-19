@@ -485,7 +485,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       }).then((extracted) => {
         setPopoverDecryptedSecret(extracted);
       }).catch((err) => {
-        setPopoverError(typeof err === 'string' ? err : 'Decryption failed');
+        setPopoverError(typeof err === 'string' ? err : t('reveal.decryptFailed'));
         setPopoverDecryptedSecret(null);
       }).finally(() => {
         setIsPopoverDecrypting(false);
@@ -636,7 +636,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
         key: whisperKey
       });
     } catch (err) {
-      setSealError(t('whisper.encryptionFailed') || 'Encryption failed');
+      setSealError(t('whisper.encryptionFailed'));
       return;
     }
 
@@ -1206,7 +1206,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
                     {isPopoverDecrypting ? (
                       <div className="flex items-center gap-2 text-sm text-zinc-400 py-2">
                         <span className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></span>
-                        {t('reveal.decrypting') || 'Decrypting...'}
+                        {t('reveal.decrypting')}
                       </div>
                     ) : popoverError ? (
                       <div className="text-sm text-red-500 dark:text-red-400 py-1 bg-red-50 dark:bg-red-950/30 px-2 rounded-md border border-red-100 dark:border-red-900/50">

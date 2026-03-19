@@ -607,7 +607,7 @@ function App() {
       <div className="flex h-screen w-screen items-center justify-center bg-white font-sans z-50">
         <div className="flex flex-col items-center gap-4">
           <img src="/logo.png" alt="LazyWhisper Logo" className="h-10 w-10 opacity-50 animate-pulse" />
-          <div className="animate-pulse text-gray-400 tracking-widest text-xs uppercase font-bold">Scanning Space Matrix...</div>
+          <div className="animate-pulse text-gray-400 tracking-widest text-xs uppercase font-bold">{t('app.scanning')}</div>
         </div>
       </div>
     );
