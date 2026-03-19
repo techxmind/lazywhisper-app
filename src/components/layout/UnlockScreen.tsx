@@ -107,64 +107,83 @@ export function UnlockScreen({ onUnlock, onCreate, isVaultExists, error }: Unloc
   };
 
   return (
-    <div className="fixed inset-0 bg-white flex flex-col items-center justify-center z-[99999] pt-[max(env(safe-area-inset-top),1rem)]">
-      <div className="w-full max-w-xs md:max-w-sm px-6 mx-auto flex flex-col items-center">
-        <div className="flex flex-col items-center gap-3 mb-10">
-          <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="LazyWhisper Logo" className="h-10 w-10 opacity-90" />
-            <h1 className="text-xl font-bold text-gray-800 tracking-wide">
-              {t('window.title')}
-            </h1>
+    <div className="fixed inset-0 bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center z-[99999] overflow-hidden">
+
+      {/* ═══════ Whispering Aura: Mesh Gradient Background ═══════ */}
+      {/* Aura A — Top Left: Indigo */}
+      <div className="absolute w-96 h-96 top-[-10%] left-[-10%] rounded-full bg-indigo-300/40 dark:bg-indigo-900/40 blur-[120px] mix-blend-multiply dark:mix-blend-screen pointer-events-none" />
+      {/* Aura B — Top Right: Purple */}
+      <div className="absolute w-96 h-96 top-[10%] right-[-10%] rounded-full bg-purple-300/40 dark:bg-purple-900/40 blur-[120px] mix-blend-multiply dark:mix-blend-screen pointer-events-none" />
+      {/* Aura C — Bottom Center: Sky */}
+      <div className="absolute w-[30rem] h-[30rem] bottom-[-20%] left-[20%] rounded-full bg-sky-300/40 dark:bg-sky-900/40 blur-[120px] mix-blend-multiply dark:mix-blend-screen pointer-events-none" />
+
+      {/* ═══════ Glassmorphism Auth Card ═══════ */}
+      <div className="relative z-10 w-full max-w-xs md:max-w-sm mx-4">
+        <div className="backdrop-blur-2xl bg-white/60 dark:bg-zinc-900/60 border border-white/50 dark:border-zinc-700/50 shadow-2xl shadow-zinc-200/50 dark:shadow-black/50 rounded-3xl px-8 py-10 flex flex-col items-center">
+
+          {/* Logo + Title */}
+          <div className="flex flex-col items-center gap-3 mb-10">
+            <div className="flex items-center gap-3">
+              <img src="/logo.png" alt="LazyWhisper Logo" className="h-10 w-10 opacity-90" />
+              <h1 className="text-xl font-bold text-gray-800 dark:text-zinc-100 tracking-wide">
+                {t('window.title')}
+              </h1>
+            </div>
+            {!isVaultExists && (
+              <h2 className="text-sm font-medium text-gray-500 dark:text-zinc-400">
+                {t('unlock.createTitle')}
+              </h2>
+            )}
           </div>
-          {!isVaultExists && (<h2 className="text-sm font-medium text-gray-500"> {t('unlock.createTitle')}</h2>)}
-        </div>
 
-        <form onSubmit={handleSubmit} className="w-full flex flex-col gap-2">
-          <input
-            ref={inputRef}
-            type="password"
-            placeholder={t('unlock.placeholder')}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow text-center tracking-widest disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
-            disabled={!!lockoutEndTime || newerVersionError}
-          />
-          {!isVaultExists && (
+          {/* Auth Form */}
+          <form onSubmit={handleSubmit} className="w-full flex flex-col gap-2">
             <input
+              ref={inputRef}
               type="password"
-              placeholder={t('unlock.confirmPlaceholder')}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full bg-white border border-gray-200 rounded-lg px-3 py-3 md:py-2.5 text-base text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow text-center tracking-widest mt-1"
+              placeholder={t('unlock.placeholder')}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-white/70 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3 py-3 md:py-2.5 text-base text-gray-800 dark:text-zinc-200 placeholder-gray-400 dark:placeholder-zinc-500 focus:outline-none focus:border-indigo-400 dark:focus:border-indigo-500 focus:ring-1 focus:ring-indigo-400 dark:focus:ring-indigo-500 transition-shadow text-center tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!!lockoutEndTime || newerVersionError}
             />
-          )}
+            {!isVaultExists && (
+              <input
+                type="password"
+                placeholder={t('unlock.confirmPlaceholder')}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full bg-white/70 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3 py-3 md:py-2.5 text-base text-gray-800 dark:text-zinc-200 placeholder-gray-400 dark:placeholder-zinc-500 focus:outline-none focus:border-indigo-400 dark:focus:border-indigo-500 focus:ring-1 focus:ring-indigo-400 dark:focus:ring-indigo-500 transition-shadow text-center tracking-widest mt-1"
+              />
+            )}
 
-          {(error || localError) && !lockoutEndTime && !newerVersionError && (
-            <p className="text-red-500 text-sm text-center mt-2 animate-pulse">{localError || error}</p>
-          )}
+            {(error || localError) && !lockoutEndTime && !newerVersionError && (
+              <p className="text-red-500 dark:text-red-400 text-sm text-center mt-2 animate-pulse">{localError || error}</p>
+            )}
 
-          {lockoutEndTime && remainingLockout > 0 && !newerVersionError && (
-            <div className="flex items-center gap-2 bg-red-50 border border-red-100 text-red-600 text-sm px-4 py-3 rounded-lg mt-4 w-full justify-center">
-              <Lock size={16} />
-              <span>{t('unlock.lockout', { time: remainingLockout })}</span>
-            </div>
-          )}
+            {lockoutEndTime && remainingLockout > 0 && !newerVersionError && (
+              <div className="flex items-center gap-2 bg-red-50/80 dark:bg-red-950/30 border border-red-100 dark:border-red-900/50 text-red-600 dark:text-red-400 text-sm px-4 py-3 rounded-xl mt-4 w-full justify-center">
+                <Lock size={16} />
+                <span>{t('unlock.lockout', { time: remainingLockout })}</span>
+              </div>
+            )}
 
-          {newerVersionError && (
-            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-600 text-sm px-4 py-3 rounded-lg mt-4 w-full justify-center text-left">
-              <AlertCircle size={16} className="shrink-0" />
-              <span>{t('unlock.newerVersion')}</span>
-            </div>
-          )}
+            {newerVersionError && (
+              <div className="flex items-center gap-2 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-amber-600 dark:text-amber-400 text-sm px-4 py-3 rounded-xl mt-4 w-full justify-center text-left">
+                <AlertCircle size={16} className="shrink-0" />
+                <span>{t('unlock.newerVersion')}</span>
+              </div>
+            )}
 
-          <button
-            type="submit"
-            className="mt-6 w-full min-h-[44px] md:min-h-0 bg-gray-800 hover:bg-gray-900 text-white font-medium py-3 md:py-2.5 rounded-lg transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:ring-offset-1 disabled:bg-gray-100 disabled:text-gray-400 disabled:border disabled:border-gray-200 disabled:cursor-not-allowed disabled:shadow-none"
-            disabled={!!lockoutEndTime || newerVersionError}
-          >
-            {isVaultExists ? t('unlock.button') : t('unlock.createButton')}
-          </button>
-        </form>
+            <button
+              type="submit"
+              className="mt-6 w-full min-h-[44px] md:min-h-0 bg-gray-800 dark:bg-zinc-200 hover:bg-gray-900 dark:hover:bg-white text-white dark:text-zinc-900 font-medium py-3 md:py-2.5 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900 disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={!!lockoutEndTime || newerVersionError}
+            >
+              {isVaultExists ? t('unlock.button') : t('unlock.createButton')}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

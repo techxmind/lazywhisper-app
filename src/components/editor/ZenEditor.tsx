@@ -759,7 +759,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
     setRevealNewerVersion(false);
   };
 
-  const ActionButtons = () => (
+  const actionButtons = (
     <>
       <button
         type="button"
@@ -792,15 +792,15 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
   return (
     <div className="relative w-full px-0 py-0 md:max-w-[800px] md:mx-auto md:px-8 md:py-12 sm:px-16 sm:py-24 prose prose-slate max-w-none focus:outline-none [&_.ProseMirror]:outline-none flex flex-col h-full bg-white dark:bg-zinc-950">
 
-      {/* 桌面端定位在右上边距外；移动端通过 Portal 渲染到 Header */}
-      <div className="hidden md:flex z-10 items-center justify-end gap-2 md:gap-4 w-full md:w-auto md:absolute md:top-10 md:right-10 pt-2 md:pt-0">
-        <ActionButtons />
+      {/* 桌面端吸顶操作栏：毛玻璃背景 sticky header */}
+      <div className="hidden md:flex sticky top-0 z-10 items-center justify-end gap-4 w-full bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md pt-2 pb-4 mb-4">
+        {actionButtons}
       </div>
 
       {/* 移动端通过 React Portal 将按钮传送到顶部 Header */}
       {mobileHeaderNode && createPortal(
         <div className="flex items-center justify-end gap-1">
-          <ActionButtons />
+          {actionButtons}
         </div>,
         mobileHeaderNode
       )}

@@ -130,13 +130,14 @@ export function Sidebar({ isMobileMenuOpen, onLock, onOpenSettings, documents, a
             <button
               type="button"
               onClick={() => onDocSelect(file.id)}
+              title={file.title || t('sidebar.untitled')}
               className={`flex-1 flex flex-row items-center gap-3 text-left pl-3 pr-8 py-2 rounded-lg transition-colors text-sm ${file.id === activeDocId
                   ? 'bg-gray-100/80 font-medium text-gray-900'
                   : 'text-gray-600 hover:bg-gray-50'
                 }`}
             >
               <FileText className="w-4 h-4 text-gray-400 shrink-0" />
-              <span className="truncate">{file.title || t('sidebar.untitled')}</span>
+              <span className="truncate block w-full text-left">{file.title || t('sidebar.untitled')}</span>
               {unsavedDocIds.has(file.id) && (
                 <div className="w-2 h-2 rounded-full bg-blue-500 ml-auto shrink-0 transition-opacity"></div>
               )}
