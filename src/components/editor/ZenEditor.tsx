@@ -1144,82 +1144,95 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
               onTouchEnd={(e) => { e.stopPropagation(); }}
               onMouseDown={(e) => { e.stopPropagation(); }}
             >
-            <motion.div
-              key="whisper-popover"
-              initial={{ opacity: 0, scale: 0.95, y: activePopoverData.rect.top > 200 ? 5 : -5 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 5 }}
-              transition={{ type: "spring", stiffness: 300, damping: 24 }}
-            >
-              {/* Arrow Caret — sits BEHIND the body card so inner half is hidden */}
-              {(() => {
-                const isDark = document.documentElement.classList.contains('dark');
-                const borderColor = isDark ? '#27272a' : '#e4e4e7';
-                return (
-                  <div
-                    className="absolute w-[14px] h-[14px] bg-white dark:bg-zinc-900 transform rotate-45"
-                    style={{
-                      zIndex: 0,
-                      left: Math.max(
-                        16,
-                        activePopoverData.rect.left - Math.max(activePopoverData.rect.left + (activePopoverData.rect.width / 2) - 170, 16) + (activePopoverData.rect.width / 2) - 7
-                      ) + 'px',
-                      ...(activePopoverData.rect.top > 200
-                        ? { bottom: '-7px', borderRight: `1px solid ${borderColor}`, borderBottom: `1px solid ${borderColor}` }
-                        : { top: '-7px', borderLeft: `1px solid ${borderColor}`, borderTop: `1px solid ${borderColor}` }
-                      )
+              <motion.div
+                key="whisper-popover"
+                initial={{ opacity: 0, scale: 0.95, y: activePopoverData.rect.top > 200 ? 5 : -5 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 5 }}
+                transition={{ type: "spring", stiffness: 300, damping: 24 }}
+              >
+                {/* Arrow Caret — z-30 sits ABOVE body (z-10), offset -5px for 1px overlap to cover body border seam */}
+                {(() => {
+                  const isDark = document.documentElement.classList.contains('dark');
+                  const borderColor = isDark ? '#27272a' : '#e4e4e7';
+                  const isAbove = activePopoverData.rect.top > 200;
+                  return (
+                    <div
+                      className="absolute w-[14px] h-[14px] bg-white dark:bg-zinc-900 transform rotate-45"
+                      style={{
+                        zIndex: 30,
+                        left: Math.max(
+                          16,
+                          activePopoverData.rect.left - Math.max(activePopoverData.rect.left + (activePopoverData.rect.width / 2) - 170, 16) + (activePopoverData.rect.width / 2) - 7
+                        ) + 'px',
+                        ...(isAbove
+                          ? {
+                            bottom: '-7px',
+                            borderRight: `1px solid ${borderColor}`,
+                            borderBottom: `1px solid ${borderColor}`,
+                            borderTop: 'none',
+                            borderLeft: 'none',
+                          }
+                          : {
+                            top: '-7px',
+                            borderLeft: `1px solid ${borderColor}`,
+                            borderTop: `1px solid ${borderColor}`,
+                            borderRight: 'none',
+                            borderBottom: 'none',
+                          }
+                        )
+                      }}
+                    />
+                  );
+                })()}
+
+                <div className="bg-white dark:bg-zinc-900/95 dark:backdrop-blur-md border border-zinc-200 dark:border-zinc-800 shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.5)] rounded-2xl p-4 md:p-6 w-[calc(100vw-32px)] md:w-[340px] max-w-[340px] max-h-64 flex flex-col gap-2 md:gap-3 relative z-10">
+                  <button
+                    className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
+                    onClick={() => {
+                      setActivePopoverData(null);
+                      setPopoverCopied(false);
                     }}
-                  />
-                );
-              })()}
+                    aria-label="Close"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
 
-              <div className="bg-white dark:bg-zinc-900/95 dark:backdrop-blur-md border border-zinc-200 dark:border-zinc-800 shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.5)] rounded-2xl p-4 md:p-6 w-[calc(100vw-32px)] md:w-[340px] max-w-[340px] max-h-64 flex flex-col gap-2 md:gap-3 relative z-10">
-                <button
-                  className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
-                  onClick={() => {
-                    setActivePopoverData(null);
-                    setPopoverCopied(false);
-                  }}
-                  aria-label="Close"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                  <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider pr-6">
+                    {activePopoverData.coverText}
+                  </div>
 
-                <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider pr-6">
-                  {activePopoverData.coverText}
-                </div>
-
-                <div className="flex-1 overflow-y-auto pr-1">
-                  {isPopoverDecrypting ? (
-                    <div className="flex items-center gap-2 text-sm text-zinc-400 py-2">
-                      <span className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></span>
-                      {t('reveal.decrypting') || 'Decrypting...'}
-                    </div>
-                  ) : popoverError ? (
-                    <div className="text-sm text-red-500 dark:text-red-400 py-1 bg-red-50 dark:bg-red-950/30 px-2 rounded-md border border-red-100 dark:border-red-900/50">
-                      {popoverError}
-                    </div>
-                  ) : popoverDecryptedSecret ? (
-                    <div className="relative group/secret">
-                      <div className="text-xl font-bold text-zinc-950 dark:text-zinc-100 leading-relaxed break-words pr-8">
-                        {popoverDecryptedSecret}
+                  <div className="flex-1 overflow-y-auto pr-1">
+                    {isPopoverDecrypting ? (
+                      <div className="flex items-center gap-2 text-sm text-zinc-400 py-2">
+                        <span className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></span>
+                        {t('reveal.decrypting') || 'Decrypting...'}
                       </div>
-                      <button
-                        className="absolute top-0 right-0 p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors opacity-0 group-hover/secret:opacity-100 focus:opacity-100 flex items-center justify-center bg-white/50 dark:bg-zinc-900/50"
-                        onClick={() => {
-                          navigator.clipboard.writeText(popoverDecryptedSecret);
-                          setPopoverCopied(true);
-                          setTimeout(() => setPopoverCopied(false), 2000);
-                        }}
-                        title="Copy secret"
-                      >
-                        {popoverCopied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  ) : null}
+                    ) : popoverError ? (
+                      <div className="text-sm text-red-500 dark:text-red-400 py-1 bg-red-50 dark:bg-red-950/30 px-2 rounded-md border border-red-100 dark:border-red-900/50">
+                        {popoverError}
+                      </div>
+                    ) : popoverDecryptedSecret ? (
+                      <div className="relative group/secret">
+                        <div className="text-xl font-bold text-zinc-950 dark:text-zinc-100 leading-relaxed break-words pr-8">
+                          {popoverDecryptedSecret}
+                        </div>
+                        <button
+                          className="absolute top-0 right-0 p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors opacity-0 group-hover/secret:opacity-100 focus:opacity-100 flex items-center justify-center bg-white/50 dark:bg-zinc-900/50"
+                          onClick={() => {
+                            navigator.clipboard.writeText(popoverDecryptedSecret);
+                            setPopoverCopied(true);
+                            setTimeout(() => setPopoverCopied(false), 2000);
+                          }}
+                          title="Copy secret"
+                        >
+                          {popoverCopied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-            </motion.div>
+              </motion.div>
             </div>
           )}
         </AnimatePresence>,

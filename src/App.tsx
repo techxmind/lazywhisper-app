@@ -33,6 +33,13 @@ function App() {
   const [hasActiveSession, setHasActiveSession] = useState(false);
   const [documents, setDocuments] = useState<VaultDocument[]>([]);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
+
+  // Persist last active doc to localStorage for restore-on-unlock
+  useEffect(() => {
+    if (activeDocId) {
+      localStorage.setItem('lazywhisper-active-doc', activeDocId);
+    }
+  }, [activeDocId]);
   
   // Auto-focus trigger for Editor
   const [editorFocusTrigger, setEditorFocusTrigger] = useState<number>(0);
@@ -335,7 +342,10 @@ function App() {
       }
 
       setDocuments(parsedDocs);
-      setActiveDocId(parsedDocs[0].id);
+      // Restore last active doc, fallback to first doc
+      const lastDocId = localStorage.getItem('lazywhisper-active-doc');
+      const restoredDoc = lastDocId && parsedDocs.find(d => d.id === lastDocId);
+      setActiveDocId(restoredDoc ? restoredDoc.id : parsedDocs[0].id);
       // Password cached in Rust by load_vault — no frontend storage
       setHasActiveSession(true);
       setUnsavedDocIds(new Set());
