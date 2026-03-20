@@ -107,7 +107,7 @@ export function UnlockScreen({ onUnlock, onCreate, isVaultExists, error }: Unloc
   };
 
   return (
-    <div className="fixed inset-0 bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center z-[99999] overflow-hidden">
+    <div className="absolute inset-0 w-full h-full bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center z-[99999] overflow-hidden">
 
       {/* ═══════ Whispering Aura: Mesh Gradient Background ═══════ */}
       {/* Aura A — Top Left: Indigo */}

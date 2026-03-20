@@ -70,7 +70,7 @@ export function Sidebar({ isMobileMenuOpen, onLock, onOpenSettings, documents, a
   return (
     <motion.aside
       className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col h-full
+        fixed inset-y-0 left-0 z-50 w-64 bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col
         shadow-2xl md:shadow-none md:relative pt-[max(env(safe-area-inset-top),1rem)]
       `}
       initial={false}

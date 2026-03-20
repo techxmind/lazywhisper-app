@@ -649,10 +649,7 @@ function App() {
           error={unlockError}
         />
       ) : (
-        <div 
-          className="flex w-full bg-white dark:bg-zinc-950 overflow-hidden" 
-          style={{ height: 'var(--app-height, 100dvh)' }}
-        >
+        <div className="flex h-full w-full bg-white dark:bg-zinc-950 overflow-hidden">
           {/* 移动端毛玻璃遮罩 */}
           {isMobileMenuOpen && (
             <div 

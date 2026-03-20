@@ -338,7 +338,7 @@ fn handle_opened_file(app: &tauri::AppHandle, path: String) {
 pub fn run() {
     write_debug_log("🚀 [RUST] 应用程序进程启动");
     let mut builder = tauri::Builder::default()
-        .setup(|_app| {
+        .setup(|app| {
             let args: Vec<String> = std::env::args().collect();
             write_debug_log(&format!("📦 [RUST SETUP] 拿到命令行参数: {:?}", args));
             
@@ -349,6 +349,77 @@ pub fn run() {
                     if let Ok(mut pending) = PENDING_PATHS.lock() {
                         pending.push(arg.clone());
                     }
+                }
+            }
+
+            // ═══════ iOS: Force WKWebView to extend behind safe area ═══════
+            #[cfg(target_os = "ios")]
+            {
+                use tauri::Manager;
+                if let Some(webview_window) = app.get_webview_window("main") {
+                    let _ = webview_window.with_webview(move |webview| {
+                        use objc2::msg_send;
+                        use objc2::runtime::AnyObject;
+                        use objc2::encode::{Encode, Encoding};
+
+                        // CoreGraphics types needed for frame/bounds manipulation
+                        #[repr(C)]
+                        #[derive(Copy, Clone)]
+                        struct CGPoint { x: f64, y: f64 }
+                        #[repr(C)]
+                        #[derive(Copy, Clone)]
+                        struct CGSize { width: f64, height: f64 }
+                        #[repr(C)]
+                        #[derive(Copy, Clone)]
+                        struct CGRect { origin: CGPoint, size: CGSize }
+                        #[repr(C)]
+                        #[derive(Copy, Clone)]
+                        struct UIEdgeInsets { top: f64, left: f64, bottom: f64, right: f64 }
+
+                        // Implement Encode so objc2 msg_send! accepts these types
+                        unsafe impl Encode for CGPoint {
+                            const ENCODING: Encoding = Encoding::Struct("CGPoint", &[Encoding::Double, Encoding::Double]);
+                        }
+                        unsafe impl Encode for CGSize {
+                            const ENCODING: Encoding = Encoding::Struct("CGSize", &[Encoding::Double, Encoding::Double]);
+                        }
+                        unsafe impl Encode for CGRect {
+                            const ENCODING: Encoding = Encoding::Struct("CGRect", &[CGPoint::ENCODING, CGSize::ENCODING]);
+                        }
+                        unsafe impl Encode for UIEdgeInsets {
+                            const ENCODING: Encoding = Encoding::Struct("UIEdgeInsets", &[Encoding::Double, Encoding::Double, Encoding::Double, Encoding::Double]);
+                        }
+
+                        unsafe {
+                            let wk_webview: *mut AnyObject = webview.inner() as *mut AnyObject;
+                            if wk_webview.is_null() { return; }
+
+                            // 1. scrollView: disable content inset adjustment + bouncing
+                            let scroll_view: *mut AnyObject = msg_send![wk_webview, scrollView];
+                            if !scroll_view.is_null() {
+                                // contentInsetAdjustmentBehavior = .never (2)
+                                let _: () = msg_send![scroll_view, setContentInsetAdjustmentBehavior: 2_isize];
+                                let _: () = msg_send![scroll_view, setBounces: false];
+                                // Reset content inset to zero
+                                let zero_insets = UIEdgeInsets { top: 0.0, left: 0.0, bottom: 0.0, right: 0.0 };
+                                let _: () = msg_send![scroll_view, setContentInset: zero_insets];
+                            }
+
+                            // 2. Ignore safe area layout margins
+                            let _: () = msg_send![wk_webview, setInsetsLayoutMarginsFromSafeArea: false];
+
+                            // 3. Pin WKWebView frame to superview's full bounds
+                            let superview: *mut AnyObject = msg_send![wk_webview, superview];
+                            if !superview.is_null() {
+                                let bounds: CGRect = msg_send![superview, bounds];
+                                let _: () = msg_send![wk_webview, setFrame: bounds];
+                                // UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight = 18
+                                let _: () = msg_send![wk_webview, setAutoresizingMask: 18_usize];
+                            }
+
+                            println!("🍎 [iOS] WKWebView edge-to-edge configuration applied");
+                        }
+                    });
                 }
             }
             
