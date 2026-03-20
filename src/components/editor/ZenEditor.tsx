@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Share, Save, Bold, Italic, Lock, Highlighter, Palette, Image as ImageIcon, AlertCircle, X, Copy, Check, ChevronUp, ChevronDown, Search, Download } from 'lucide-react';
@@ -444,6 +445,44 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       return () => clearTimeout(timer);
     }
   }, [editorFocusTrigger, editor]);
+
+  // ═══════ iOS Keyboard: focus-based padding + delayed scrollIntoView ═══════
+  const keyboardHeight = useKeyboardHeight();
+  const [isEditorFocused, setIsEditorFocused] = useState(false);
+  const prevKeyboardHeightRef = useRef(0);
+
+  // Track editor focus state for dynamic padding
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    const onFocus = () => {
+      setIsEditorFocused(true);
+      // Fix 3: 300ms delayed scrollIntoView — wait for iOS keyboard animation
+      setTimeout(() => {
+        if (!editor.isDestroyed) {
+          editor.commands.scrollIntoView();
+        }
+      }, 300);
+    };
+    const onBlur = () => setIsEditorFocused(false);
+    editor.on('focus', onFocus);
+    editor.on('blur', onBlur);
+    return () => {
+      editor.off('focus', onFocus);
+      editor.off('blur', onBlur);
+    };
+  }, [editor]);
+
+  // Also scrollIntoView when keyboard height changes while focused
+  useEffect(() => {
+    if (keyboardHeight > 0 && prevKeyboardHeightRef.current === 0) {
+      if (editor && !editor.isDestroyed && editor.isFocused) {
+        setTimeout(() => {
+          editor.commands.scrollIntoView();
+        }, 300);
+      }
+    }
+    prevKeyboardHeightRef.current = keyboardHeight;
+  }, [keyboardHeight, editor]);
 
   // Force baseline diff synchronization on global saves
   useEffect(() => {
@@ -1052,7 +1091,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       )}
 
       {/* Editor Content Area */}
-      <div className="w-full relative flex-1 h-full md:min-h-[500px] flex flex-col mt-4 md:mt-0 px-4 md:px-0 bg-transparent">
+      <div className="w-full relative flex-1 min-h-0 md:min-h-[500px] flex flex-col mt-4 md:mt-0 px-4 md:px-0 bg-transparent">
 
         {/* Find in Page Floating Panel */}
         <AnimatePresence>
@@ -1140,10 +1179,13 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
           onClick={() => editor?.commands.focus()}
         />
 
-        {/* Update timestamp */}
-        <div className="text-right text-xs md:text-[10px] text-gray-400 mt-12 md:mt-8 pb-12 opacity-50 select-none">
-          {t('editor.lastUpdate')} {formatTime(lastSavedTimestamp)}
-        </div>
+
+        {/* Update timestamp — fixed bottom-right, hidden when editor focused */}
+        {!isEditorFocused && (
+          <div className="fixed bottom-4 right-4 text-xs md:text-[10px] text-gray-400 opacity-50 select-none pointer-events-none z-10">
+            {t('editor.lastUpdate')} {formatTime(lastSavedTimestamp)}
+          </div>
+        )}
       </div>
 
       {/* 密语封存弹窗 Seal Modal */}

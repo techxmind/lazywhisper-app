@@ -8,6 +8,7 @@ import { SettingsModal } from "./components/layout/SettingsModal";
 import { useTranslation } from "react-i18next";
 import { useEffect, useRef } from "react";
 import { documentDir, join } from '@tauri-apps/api/path';
+import { useKeyboardHeight } from './hooks/useKeyboardHeight';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { ask, confirm } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
@@ -28,6 +29,7 @@ export interface VaultDocument {
 
 function App() {
   const { t, i18n } = useTranslation();
+  const keyboardHeight = useKeyboardHeight();
   const [isLocked, setIsLocked] = useState(true);
   // HIGH-1 Fix: Password no longer stored in React state. Lives in Rust SESSION_PASSWORD cache.
   const [hasActiveSession, setHasActiveSession] = useState(false);
@@ -699,7 +701,7 @@ function App() {
               </div>
             </header>
 
-            <div className="flex-1 w-full flex flex-col items-center overflow-y-auto overscroll-y-contain pb-[env(safe-area-inset-bottom)]">
+            <div className="flex-1 w-full flex flex-col items-center overflow-y-auto overscroll-y-contain" style={{ paddingBottom: `max(env(safe-area-inset-bottom), ${keyboardHeight}px)` }}>
               {activeDoc ? (
                 <ZenEditor 
                   activeDoc={activeDoc}

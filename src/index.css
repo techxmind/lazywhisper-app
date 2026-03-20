@@ -36,7 +36,7 @@
 
 /* Global Styles */
 @layer base {
-  html, body, #root {
+  html, body {
     position: fixed;
     top: 0;
     left: 0;
@@ -44,12 +44,25 @@
     bottom: 0;
     width: 100vw;
     height: 100vh;
-    /* 针对 iOS 的高度特化 */
     height: -webkit-fill-available;
     margin: 0;
     padding: 0;
-    overflow: hidden; /* 彻底禁用系统级滚动和橡皮筋回弹效果 */
+    overflow: hidden;
     background-color: transparent;
+  }
+
+  #root {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    /* 关键：使用 JS 动态注入的 --app-height 跟踪 visualViewport.height */
+    /* 当 iOS 键盘弹出时, --app-height 会缩小, #root 容器跟着缩小 */
+    /* 内部的 overflow-y-auto 容器就能自然滚动, 光标不会被遮挡 */
+    height: var(--app-height, 100vh);
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
   }
 
   body {
