@@ -71,7 +71,7 @@ export function Sidebar({ isMobileMenuOpen, onLock, onOpenSettings, documents, a
     <motion.aside
       className={`
         fixed inset-y-0 left-0 z-50 w-64 bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col
-        shadow-2xl md:shadow-none md:relative pt-[max(env(safe-area-inset-top),1rem)]
+        shadow-2xl md:shadow-none md:rounded-none rounded-r-2xl md:relative pt-[max(env(safe-area-inset-top),1rem)]
       `}
       initial={false}
       animate={{ x: isMobile && !isMobileMenuOpen ? '-100%' : 0 }}
@@ -166,7 +166,7 @@ export function Sidebar({ isMobileMenuOpen, onLock, onOpenSettings, documents, a
       </div>
 
       {/* 底部控制区 Bottom Controls */}
-      <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 flex flex-col gap-2 pb-[max(env(safe-area-inset-bottom),1rem)]">
+      <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 flex flex-col gap-2 pb-[max(env(safe-area-inset-bottom),1.5rem)]">
         <button
           type="button"
           className="flex items-center gap-3 w-full text-left px-3 py-2 min-h-[48px] text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
