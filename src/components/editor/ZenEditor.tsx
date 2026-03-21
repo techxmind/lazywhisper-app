@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Share, Save, Bold, Italic, Lock, Highlighter, Palette, Image as ImageIcon, AlertCircle, X, Copy, Check, ChevronUp, ChevronDown, Search, Download } from 'lucide-react';
+import { Share, Save, Bold, Italic, Lock, Highlighter, Palette, Image as ImageIcon, AlertCircle, X, Copy, Check, ChevronUp, ChevronDown, Search, Download, Edit2 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { hashKey } from '../../utils/crypto';
 import { VaultDocument } from '../../App';
@@ -93,7 +93,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
   // Reveal State
   const [isRevealModalOpen, setIsRevealModalOpen] = useState(false);
-  const [activeRevealData, setActiveRevealData] = useState<{ coverText: string, encryptedSecret: string, rect: DOMRect } | null>(null);
+  const [activeRevealData, setActiveRevealData] = useState<{ coverText: string, encryptedSecret: string, rect: DOMRect, pos?: number } | null>(null);
   const [revealKey, setRevealKey] = useState('');
   const [revealError, setRevealError] = useState('');
   const [revealNewerVersion, setRevealNewerVersion] = useState(false);
@@ -123,7 +123,10 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
   }, [isRevealModalOpen, activeRevealData]);
 
   // Popover State (UX Upgrade)
-  const [activePopoverData, setActivePopoverData] = useState<{ coverText: string, encryptedSecret: string, rect: DOMRect } | null>(null);
+  const [activePopoverData, setActivePopoverData] = useState<{ coverText: string, encryptedSecret: string, rect: DOMRect, pos?: number } | null>(null);
+  
+  // For editing existing whisper block
+  const [currentEditPos, setCurrentEditPos] = useState<number | null>(null);
   const [popoverDecryptedSecret, setPopoverDecryptedSecret] = useState<string | null>(null);
   const [isPopoverDecrypting, setIsPopoverDecrypting] = useState(false);
   const [popoverError, setPopoverError] = useState('');
@@ -246,11 +249,16 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
             if (coverText && encryptedSecret) {
               const rect = whisperSpan.getBoundingClientRect();
+              
+              // Safely attempt to get node position (ProseMirror requires exact positions, not DOM nodes)
+              let pos: number | undefined;
+              try { pos = _view.posAtDOM(whisperSpan, 0) - 1; } catch (e) { }
+
               if (sessionKeyRef.current) {
-                setActivePopoverData({ coverText, encryptedSecret, rect });
+                setActivePopoverData({ coverText, encryptedSecret, rect, pos });
                 setIsRevealModalOpen(false);
               } else {
-                setActiveRevealData({ coverText, encryptedSecret, rect });
+                setActiveRevealData({ coverText, encryptedSecret, rect, pos });
                 setIsRevealModalOpen(true);
                 setActivePopoverData(null);
               }
@@ -272,11 +280,15 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
             if (coverText && encryptedSecret) {
               const rect = whisperSpan.getBoundingClientRect();
+              
+              let pos: number | undefined;
+              try { pos = _view.posAtDOM(whisperSpan, 0) - 1; } catch (e) { }
+
               if (sessionKeyRef.current) {
-                setActivePopoverData({ coverText, encryptedSecret, rect });
+                setActivePopoverData({ coverText, encryptedSecret, rect, pos });
                 setIsRevealModalOpen(false);
               } else {
-                setActiveRevealData({ coverText, encryptedSecret, rect });
+                setActiveRevealData({ coverText, encryptedSecret, rect, pos });
                 setIsRevealModalOpen(true);
                 setActivePopoverData(null);
               }
@@ -781,11 +793,12 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
     closeImport();
   };
 
-  const openSealModal = (text: string) => {
+  const openSealModal = (text: string, pos?: number) => {
     setCurrentCoverText(text);
     setRealSecret(text); // Default real secret to the selected text so they can edit it
     setSealError('');
     setConfirmWhisperKey('');
+    setCurrentEditPos(pos || null);
 
     if (sessionWhisperKey) {
       // Scenario C: Session hit, silent seal directly?
@@ -831,18 +844,28 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       return;
     }
 
-    editor.chain().focus().setWhisperNode({
-      coverText: currentCoverText,
-      encryptedSecret: encryptedSecret,
-      originNoteId: activeDoc.id
-    }).run();
+    if (currentEditPos !== null) {
+      editor.chain().focus()
+        .setNodeSelection(currentEditPos)
+        .setWhisperNode({
+          coverText: currentCoverText,
+          encryptedSecret: encryptedSecret,
+          originNoteId: activeDoc.id
+        }).run();
+    } else {
+      editor.chain().focus().setWhisperNode({
+        coverText: currentCoverText,
+        encryptedSecret: encryptedSecret,
+        originNoteId: activeDoc.id
+      }).run();
+    }
 
     setIsModalOpen(false);
-    // HIGH-2 Fix: Zeroize sensitive modal state after sealing
     setWhisperKey('');
     setConfirmWhisperKey('');
     setRealSecret('');
     setCurrentCoverText('');
+    setCurrentEditPos(null);
   };
 
   const handleRevealWhisper = async () => {
@@ -977,8 +1000,14 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       {editor && (
         <BubbleMenu
           editor={editor}
-          tippyOptions={{ duration: 100 }}
-          className="flex items-center p-1 space-x-1 bg-white border border-gray-200 shadow-md rounded-lg relative"
+          tippyOptions={{
+            duration: 100,
+            appendTo: () => document.body,
+            zIndex: 99999,
+            maxWidth: '90vw',
+            offset: [0, 12],
+          }}
+          className="flex items-center p-1 space-x-1 bg-white border border-gray-200 shadow-md rounded-lg relative pointer-events-auto"
           shouldShow={({ state, from, to }) => {
             if (isRevealModalOpen) return false;
 
@@ -998,6 +1027,8 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
           }}
         >
           <button
+            type="button"
+            onPointerDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().toggleBold().run()}
             className={`p-1.5 rounded-md transition-colors ${editor.isActive('bold') ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`}
             title={t('menu.bold')}
@@ -1006,6 +1037,8 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
           </button>
 
           <button
+            type="button"
+            onPointerDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().toggleItalic().run()}
             className={`p-1.5 rounded-md transition-colors ${editor.isActive('italic') ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`}
             title={t('menu.italic')}
@@ -1017,6 +1050,8 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
           <div className="relative">
             <button
+              type="button"
+              onPointerDown={(e) => e.preventDefault()}
               onClick={() => setShowPalette(!showPalette)}
               className="p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 rounded-md transition-colors"
               title="Text Color"
@@ -1028,6 +1063,8 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
                 {['#000000', '#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#6366F1', '#8B5CF6', '#EC4899', '#FFFFFF'].map(color => (
                   <button
                     key={color}
+                    type="button"
+                    onPointerDown={(e) => e.preventDefault()}
                     onClick={() => {
                       editor.chain().focus().setColor(color).run();
                       setShowPalette(false);
@@ -1041,6 +1078,8 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
           </div>
 
           <button
+            type="button"
+            onPointerDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().toggleHighlight().run()}
             className={`p-1.5 rounded-md transition-colors ${editor.isActive('highlight') ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`}
             title="Highlight"
@@ -1049,6 +1088,8 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
           </button>
 
           <button
+            type="button"
+            onPointerDown={(e) => e.preventDefault()}
             onClick={() => {
               const fileInput = document.createElement('input');
               fileInput.type = 'file';
@@ -1075,6 +1116,8 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
           <div className="w-px h-4 bg-gray-200 mx-1"></div>
 
           <button
+            type="button"
+            onPointerDown={(e) => e.preventDefault()}
             onClick={() => {
               const { from, to } = editor.state.selection;
               const text = editor.state.doc.textBetween(from, to, ' ');
@@ -1586,17 +1629,39 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
                         <div className="text-xl font-bold text-zinc-950 dark:text-zinc-100 leading-relaxed break-words pr-8">
                           {popoverDecryptedSecret}
                         </div>
-                        <button
-                          className="absolute top-0 right-0 p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors opacity-0 group-hover/secret:opacity-100 focus:opacity-100 flex items-center justify-center bg-white/50 dark:bg-zinc-900/50"
-                          onClick={() => {
-                            navigator.clipboard.writeText(popoverDecryptedSecret);
-                            setPopoverCopied(true);
-                            setTimeout(() => setPopoverCopied(false), 2000);
-                          }}
-                          title="Copy secret"
-                        >
-                          {popoverCopied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                        </button>
+                        <div className="absolute top-0 right-0 flex items-center gap-1 opacity-0 group-hover/secret:opacity-100 focus-within:opacity-100">
+                          <button
+                            className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors flex items-center justify-center bg-white/50 dark:bg-zinc-900/50"
+                            onClick={() => {
+                              setCurrentCoverText(activePopoverData.coverText);
+                              setRealSecret(popoverDecryptedSecret);
+                              setSealError('');
+                              setConfirmWhisperKey('');
+                              setCurrentEditPos(activePopoverData.pos || null);
+                              if (sessionWhisperKey) {
+                                setWhisperKey(sessionWhisperKey);
+                              } else {
+                                setWhisperKey('');
+                              }
+                              setIsModalOpen(true);
+                              setActivePopoverData(null);
+                            }}
+                            title="Edit whisper"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors flex items-center justify-center bg-white/50 dark:bg-zinc-900/50"
+                            onClick={() => {
+                              navigator.clipboard.writeText(popoverDecryptedSecret);
+                              setPopoverCopied(true);
+                              setTimeout(() => setPopoverCopied(false), 2000);
+                            }}
+                            title="Copy secret"
+                          >
+                            {popoverCopied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                          </button>
+                        </div>
                       </div>
                     ) : null}
                   </div>
