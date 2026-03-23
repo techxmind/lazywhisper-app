@@ -252,8 +252,8 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
 
       {/* Password Sub-Modal */}
       {isPasswordModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm">
-          <div className="bg-white border border-gray-200 rounded-md w-full max-w-[400px] p-6 flex flex-col gap-6">
+        <div className="fixed inset-0 z-[60] flex items-start pt-[15dvh] md:items-center md:pt-0 justify-center p-4 bg-black/20 backdrop-blur-sm">
+          <div className="bg-white border border-gray-200 rounded-md w-full max-w-[400px] p-6 flex flex-col gap-6 max-h-[70dvh] overflow-y-auto">
             <div>
               <h3 className="text-lg font-light text-gray-900">{t('settings.changePwdTitle')}</h3>
               <p className="text-xs text-amber-600 mt-1">{t('settings.changePwdNote')}</p>

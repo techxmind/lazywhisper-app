@@ -33,12 +33,12 @@ export function Dialog({ open, onOpenChange, title, description, children, class
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-start pt-[15dvh] md:items-center md:pt-0 justify-center p-4">
       <div 
         className="fixed inset-0 bg-black/20"
         onClick={() => onOpenChange(false)}
       />
-      <div className={cn("z-50 w-full max-w-lg bg-background p-6 border-minimal flex flex-col gap-4 shadow-none", className)}>
+      <div className={cn("z-50 w-full max-w-lg bg-background p-6 border-minimal flex flex-col gap-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] md:shadow-none max-h-[70dvh] overflow-y-auto rounded-xl", className)}>
         {title && <h2 className="text-lg font-medium">{title}</h2>}
         {description && <p className="text-sm text-gray-500">{description}</p>}
         <div>{children}</div>

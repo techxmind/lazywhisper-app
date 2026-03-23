@@ -125,7 +125,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
   // Popover State (UX Upgrade)
   const [activePopoverData, setActivePopoverData] = useState<{ coverText: string, encryptedSecret: string, rect: DOMRect, pos?: number } | null>(null);
-  
+
   // For editing existing whisper block
   const [currentEditPos, setCurrentEditPos] = useState<number | null>(null);
   const [popoverDecryptedSecret, setPopoverDecryptedSecret] = useState<string | null>(null);
@@ -250,7 +250,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
             if (coverText && encryptedSecret) {
               const rect = whisperSpan.getBoundingClientRect();
-              
+
               // Safely attempt to get node position (ProseMirror requires exact positions, not DOM nodes)
               let pos: number | undefined;
               try { pos = _view.posAtDOM(whisperSpan, 0) - 1; } catch (e) { }
@@ -281,7 +281,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
             if (coverText && encryptedSecret) {
               const rect = whisperSpan.getBoundingClientRect();
-              
+
               let pos: number | undefined;
               try { pos = _view.posAtDOM(whisperSpan, 0) - 1; } catch (e) { }
 
@@ -822,17 +822,17 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
         if (targetNode && targetNode.text) {
           const text = targetNode.text;
           const localOffset = $head.parentOffset - childStart;
-          
+
           let start = localOffset;
           while (start > 0 && /\S/.test(text[start - 1])) start--;
-          
+
           let end = localOffset;
           while (end < text.length && /\S/.test(text[end])) end++;
-          
+
           if (start < end) {
             const startPos = $head.start() + childStart + start;
             const endPos = $head.start() + childStart + end;
-            
+
             const wordSelection = TextSelection.create(editor.state.doc, startPos, endPos);
             editor.view.dispatch(editor.state.tr.setSelection(wordSelection));
             from = wordSelection.from;
@@ -1282,8 +1282,8 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
       {/* 密语封存弹窗 Seal Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20">
-          <div className="bg-white border border-gray-200 rounded-md w-full max-w-[480px] p-6 flex flex-col gap-6">
+        <div className="fixed inset-0 z-50 flex items-start pt-[15dvh] md:items-center md:pt-0 justify-center p-4 bg-black/20">
+          <div className="bg-white border border-gray-200 rounded-md w-full max-w-[480px] p-6 flex flex-col gap-6 max-h-[70dvh] overflow-y-auto">
             <div>
               <h3 className="text-xl font-semibold text-gray-800 mb-6">{t('modal.title')}</h3>
               <div className="bg-gray-50 border border-gray-100 focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-300 transition-shadow rounded-lg p-3 mb-6 flex flex-col gap-1">
@@ -1372,8 +1372,8 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
       {/* 导出分享弹窗 Export Modal */}
       {isExportModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20">
-          <div className="bg-white border border-gray-200 rounded-md w-full max-w-[400px] p-6 flex flex-col gap-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-start pt-[15dvh] md:items-center md:pt-0 justify-center p-4 bg-black/20">
+          <div className="bg-white border border-gray-200 rounded-md w-full max-w-[400px] p-6 flex flex-col gap-6 shadow-xl max-h-[70dvh] overflow-y-auto">
             <div>
               <h3 className="text-lg font-light text-gray-900">{t('export.title')}</h3>
               {exportSuccess && (
@@ -1443,8 +1443,8 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
       {/* ═══════ Import Password Modal ═══════ */}
       {isImportPasswordOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20">
-          <div className="bg-white border border-gray-200 rounded-md w-full max-w-[400px] p-6 flex flex-col gap-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-start pt-[15dvh] md:items-center md:pt-0 justify-center p-4 bg-black/20">
+          <div className="bg-white border border-gray-200 rounded-md w-full max-w-[400px] p-6 flex flex-col gap-6 shadow-xl max-h-[70dvh] overflow-y-auto">
             <h3 className="text-lg font-light text-gray-900">{t('import.passwordTitle')}</h3>
 
             <div className="flex flex-col gap-3">
@@ -1492,17 +1492,17 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
       {/* ═══════ Import Confirmation Modal ═══════ */}
       {isImportConfirmOpen && importedDocs.length > 0 && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20">
-          <div className="bg-white border border-gray-200 rounded-md w-full max-w-[400px] p-6 flex flex-col gap-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-start pt-[15dvh] md:items-center md:pt-0 justify-center p-4 bg-black/20">
+          <div className="bg-white border border-gray-200 rounded-md w-full max-w-[400px] p-6 flex flex-col gap-6 shadow-xl max-h-[70dvh] overflow-y-auto">
             <div>
               <h3 className="text-lg font-light text-gray-900">{t('import.confirm')}</h3>
               <p className="text-sm text-gray-500 mt-2">
                 {importedDocs.length === 1
                   ? t('import.confirmSingle', { title: (importedDocs[0].title || t('sidebar.untitled')).slice(0, 30) })
                   : t('import.confirmMessage', {
-                      title: (importedDocs[0].title || t('sidebar.untitled')).slice(0, 30),
-                      count: importedDocs.length - 1,
-                    })
+                    title: (importedDocs[0].title || t('sidebar.untitled')).slice(0, 30),
+                    count: importedDocs.length - 1,
+                  })
                 }
               </p>
             </div>
@@ -1527,8 +1527,8 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
       {/* 密语阅读弹窗 Reveal Modal */}
       {isRevealModalOpen && activeRevealData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/5 backdrop-blur-sm">
-          <div className="bg-white border border-gray-200 w-full max-w-[500px] rounded p-8 flex flex-col gap-6 font-sans">
+        <div className="fixed inset-0 z-50 flex items-start pt-[15dvh] md:items-center md:pt-0 justify-center p-4 bg-black/5 backdrop-blur-sm">
+          <div className="bg-white border border-gray-200 w-full max-w-[500px] rounded p-8 flex flex-col gap-6 font-sans max-h-[70dvh] overflow-y-auto">
             <div>
               <h3 className="text-xl font-semibold text-gray-800 mb-6">{t('reveal.title')}</h3>
             </div>
@@ -1653,23 +1653,19 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
                   );
                 })()}
 
-                <div className="bg-white dark:bg-zinc-900/95 dark:backdrop-blur-md border border-zinc-200 dark:border-zinc-800 shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.5)] rounded-2xl p-4 md:p-6 w-[calc(100vw-32px)] md:w-[340px] max-w-[340px] max-h-64 flex flex-col gap-2 md:gap-3 relative z-10">
+                <div className="bg-white dark:bg-zinc-900/95 dark:backdrop-blur-md border border-zinc-200 dark:border-zinc-800 shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.5)] rounded-2xl p-4 md:p-6 w-[calc(100vw-32px)] md:w-[340px] max-w-[340px] max-h-64 flex flex-col relative z-10">
                   <button
-                    className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
+                    className="absolute top-3 right-3 z-20 p-1.5 min-w-[36px] min-h-[36px] md:min-w-0 md:min-h-0 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors flex items-center justify-center bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md"
                     onClick={() => {
                       setActivePopoverData(null);
                       setPopoverCopied(false);
                     }}
                     aria-label="Close"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-5 h-5 md:w-4 md:h-4" />
                   </button>
 
-                  <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider pr-6">
-                    {activePopoverData.coverText}
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto pr-1">
+                  <div className="flex-1 overflow-y-auto pr-1 pb-1 pt-1">
                     {isPopoverDecrypting ? (
                       <div className="flex items-center gap-2 text-sm text-zinc-400 py-2">
                         <span className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></span>
@@ -1680,13 +1676,13 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
                         {popoverError}
                       </div>
                     ) : popoverDecryptedSecret ? (
-                      <div className="relative group/secret">
-                        <div className="text-xl font-bold text-zinc-950 dark:text-zinc-100 leading-relaxed break-words pr-8">
+                      <div className="group/secret flex flex-col gap-4">
+                        <div className="text-lg md:text-xl font-medium tracking-wide text-blue-600 dark:text-blue-400 leading-relaxed break-words pr-10">
                           {popoverDecryptedSecret}
                         </div>
-                        <div className="absolute top-0 right-0 flex items-center gap-1 opacity-0 group-hover/secret:opacity-100 focus-within:opacity-100">
+                        <div className="flex items-center justify-end gap-2 md:gap-1.5 opacity-100 md:opacity-0 md:group-hover/secret:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
                           <button
-                            className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors flex items-center justify-center bg-white/50 dark:bg-zinc-900/50"
+                            className="p-2 md:p-1.5 min-w-[36px] min-h-[36px] md:min-w-[28px] md:min-h-[28px] text-zinc-500 md:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-[10px] md:rounded-md transition-colors flex items-center justify-center bg-zinc-100 md:bg-white/50 dark:bg-zinc-800 md:dark:bg-zinc-900/50"
                             onClick={() => {
                               setCurrentCoverText(activePopoverData.coverText);
                               setRealSecret(popoverDecryptedSecret);
@@ -1703,10 +1699,10 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
                             }}
                             title="Edit whisper"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Edit2 className="w-5 h-5 md:w-4 md:h-4" />
                           </button>
                           <button
-                            className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors flex items-center justify-center bg-white/50 dark:bg-zinc-900/50"
+                            className="p-2 md:p-1.5 min-w-[36px] min-h-[36px] md:min-w-[28px] md:min-h-[28px] text-zinc-500 md:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-[10px] md:rounded-md transition-colors flex items-center justify-center bg-zinc-100 md:bg-white/50 dark:bg-zinc-800 md:dark:bg-zinc-900/50"
                             onClick={() => {
                               navigator.clipboard.writeText(popoverDecryptedSecret);
                               setPopoverCopied(true);
@@ -1714,7 +1710,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
                             }}
                             title="Copy secret"
                           >
-                            {popoverCopied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                            {popoverCopied ? <Check className="w-5 h-5 md:w-4 md:h-4 text-green-500" /> : <Copy className="w-5 h-5 md:w-4 md:h-4" />}
                           </button>
                         </div>
                       </div>
@@ -1729,15 +1725,15 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       )}
 
       {/* Mobile Keyboard Toolbar */}
-      <div 
-        className="md:hidden fixed z-[45] left-0 right-0 bg-zinc-100 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-around px-2 py-1.5 gap-1 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] dark:shadow-[0_-4px_10px_rgba(0,0,0,0.2)]"
+      <div
+        className="md:hidden fixed z-[45] left-0 right-0 bg-zinc-100 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 flex items-center gap-2 overflow-x-auto whitespace-nowrap px-4 py-2 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] dark:shadow-[0_-4px_10px_rgba(0,0,0,0.2)] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
         style={{ bottom: keyboardHeight > 0 ? keyboardHeight : 0, transition: 'bottom 0.1s ease-out' }}
       >
         <button
           type="button"
           onPointerDown={(e) => e.preventDefault()}
           onClick={() => editor?.chain().focus().toggleBold().run()}
-          className={`p-2 rounded-md transition-colors ${editor?.isActive('bold') ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-800'}`}
+          className={`p-2 rounded-md transition-colors shrink-0 ${editor?.isActive('bold') ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-800'}`}
         >
           <Bold className="w-5 h-5" />
         </button>
@@ -1745,24 +1741,61 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
           type="button"
           onPointerDown={(e) => e.preventDefault()}
           onClick={() => editor?.chain().focus().toggleItalic().run()}
-          className={`p-2 rounded-md transition-colors ${editor?.isActive('italic') ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-800'}`}
+          className={`p-2 rounded-md transition-colors shrink-0 ${editor?.isActive('italic') ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-800'}`}
         >
           <Italic className="w-5 h-5" />
         </button>
+
+        {/* Text Color Picker */}
+        <div className="relative shrink-0 flex items-center justify-center p-2 rounded-md transition-colors text-zinc-500 hover:text-zinc-800">
+          <Palette className="w-5 h-5 absolute pointer-events-none" />
+          <input
+            type="color"
+            className="w-5 h-5 opacity-0 cursor-pointer"
+            onChange={(e) => {
+              editor?.chain().focus().setColor(e.target.value).run();
+            }}
+          />
+        </div>
+
         <button
           type="button"
           onPointerDown={(e) => e.preventDefault()}
           onClick={() => editor?.chain().focus().toggleHighlight().run()}
-          className={`p-2 rounded-md transition-colors ${editor?.isActive('highlight') ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-800'}`}
+          className={`p-2 rounded-md transition-colors shrink-0 ${editor?.isActive('highlight') ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-800'}`}
         >
           <Highlighter className="w-5 h-5" />
         </button>
-        <div className="w-px h-6 bg-zinc-300 dark:bg-zinc-700 mx-1"></div>
+
+        {/* Image Upload */}
+        <div className="relative shrink-0 flex items-center justify-center p-2 rounded-md transition-colors text-zinc-500 hover:text-zinc-800">
+          <ImageIcon className="w-5 h-5 absolute pointer-events-none" />
+          <input
+            type="file"
+            accept="image/*"
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                  const base64 = event.target?.result as string;
+                  editor?.chain().focus().setImage({ src: base64 }).run();
+                };
+                reader.readAsDataURL(file);
+              }
+              e.target.value = '';
+            }}
+          />
+        </div>
+
+        <div className="w-px h-6 bg-zinc-300 dark:bg-zinc-700 mx-2 shrink-0"></div>
+
         <button
           type="button"
           onPointerDown={(e) => e.preventDefault()}
           onClick={handleWhisperToolClick}
-          className="flex items-center justify-center gap-1.5 p-2 px-3 rounded-md transition-colors text-blue-600 dark:text-blue-500 bg-blue-50 dark:bg-blue-900/30 font-medium"
+          className="flex items-center justify-center gap-1.5 p-2 px-3 shrink-0 rounded-md transition-colors text-blue-600 dark:text-blue-500 bg-blue-50 dark:bg-blue-900/30 font-medium ml-auto"
         >
           <Lock className="w-5 h-5" />
           <span className="text-sm">{t('menu.whisper')}</span>
