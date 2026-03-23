@@ -103,7 +103,11 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
         setIsPasswordModalOpen(false); // auto close the sub-modal
       }, 1500);
     } catch (e: any) {
-      setPasswordError(e.message || t('settings.pwdFailed'));
+      if (typeof e === 'string' && (e.includes('Incorrect current password') || e.includes('Invalid signature') || e.includes('wrong password'))) {
+        setPasswordError(t('settings.pwdIncorrect'));
+      } else {
+        setPasswordError(e.message || e || t('settings.pwdFailed'));
+      }
     } finally {
       setIsUpdatingPassword(false);
     }
