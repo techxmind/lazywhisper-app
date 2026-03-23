@@ -16,6 +16,7 @@ import TextStyle from '@tiptap/extension-text-style';
 import Highlight from '@tiptap/extension-highlight';
 import Image from '@tiptap/extension-image';
 import { Slice, Fragment, DOMParser as PMDOMParser } from '@tiptap/pm/model';
+import { TextSelection } from '@tiptap/pm/state';
 import { WhisperNode } from '../../core/tiptap/WhisperExtension';
 import { SearchAndReplace } from '../../core/tiptap/SearchAndReplace';
 
@@ -789,9 +790,62 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
     }));
 
     await onImportDocs(reIdDocs);
-    alert(t('import.success', { count: reIdDocs.length }));
     closeImport();
   };
+
+  const handleWhisperToolClick = () => {
+    if (!editor) return;
+
+    let { from, to, empty } = editor.state.selection;
+
+    if (empty) {
+      const { $head } = editor.state.selection;
+      if ($head.parent.isTextblock) {
+        let targetNode = null;
+        let childStart = 0;
+        let currentOffset = 0;
+
+        for (let i = 0; i < $head.parent.childCount; i++) {
+          const child = $head.parent.child(i);
+          const childEnd = currentOffset + child.nodeSize;
+
+          if ($head.parentOffset >= currentOffset && $head.parentOffset <= childEnd) {
+            if (child.isText) {
+              targetNode = child;
+              childStart = currentOffset;
+              break;
+            }
+          }
+          currentOffset = childEnd;
+        }
+
+        if (targetNode && targetNode.text) {
+          const text = targetNode.text;
+          const localOffset = $head.parentOffset - childStart;
+          
+          let start = localOffset;
+          while (start > 0 && /\S/.test(text[start - 1])) start--;
+          
+          let end = localOffset;
+          while (end < text.length && /\S/.test(text[end])) end++;
+          
+          if (start < end) {
+            const startPos = $head.start() + childStart + start;
+            const endPos = $head.start() + childStart + end;
+            
+            const wordSelection = TextSelection.create(editor.state.doc, startPos, endPos);
+            editor.view.dispatch(editor.state.tr.setSelection(wordSelection));
+            from = wordSelection.from;
+            to = wordSelection.to;
+          }
+        }
+      }
+    }
+
+    const text = editor.state.doc.textBetween(from, to, ' ');
+    openSealModal(text);
+  };
+
 
   const openSealModal = (text: string, pos?: number) => {
     setCurrentCoverText(text);
@@ -1010,6 +1064,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
           className="flex items-center p-1 space-x-1 bg-white border border-gray-200 shadow-md rounded-lg relative pointer-events-auto"
           shouldShow={({ state, from, to }) => {
             if (isRevealModalOpen) return false;
+            if (typeof window !== 'undefined' && window.innerWidth < 768) return false;
 
             // Allow Tiptap state checking
             const { doc, selection } = state;
@@ -1118,13 +1173,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
           <button
             type="button"
             onPointerDown={(e) => e.preventDefault()}
-            onClick={() => {
-              const { from, to } = editor.state.selection;
-              const text = editor.state.doc.textBetween(from, to, ' ');
-              if (text) {
-                openSealModal(text);
-              }
-            }}
+            onClick={handleWhisperToolClick}
             className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
           >
             <Lock className="w-3.5 h-3.5" />
@@ -1237,9 +1286,15 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
           <div className="bg-white border border-gray-200 rounded-md w-full max-w-[480px] p-6 flex flex-col gap-6">
             <div>
               <h3 className="text-xl font-semibold text-gray-800 mb-6">{t('modal.title')}</h3>
-              <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 mb-6 flex flex-col gap-1">
-                <span className="text-xs text-gray-400 uppercase">{t('modal.coverText')}</span>
-                <p className="text-sm text-gray-700">{currentCoverText}</p>
+              <div className="bg-gray-50 border border-gray-100 focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-300 transition-shadow rounded-lg p-3 mb-6 flex flex-col gap-1">
+                <span className="text-xs text-gray-400 uppercase font-medium">{t('modal.coverText')}</span>
+                <input
+                  type="text"
+                  value={currentCoverText}
+                  onChange={(e) => setCurrentCoverText(e.target.value)}
+                  className="w-full bg-transparent text-sm text-gray-800 focus:outline-none placeholder-gray-400"
+                  spellCheck="false"
+                />
               </div>
             </div>
 
@@ -1672,6 +1727,48 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
         </AnimatePresence>,
         document.body
       )}
+
+      {/* Mobile Keyboard Toolbar */}
+      <div 
+        className="md:hidden fixed z-[45] left-0 right-0 bg-zinc-100 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-around px-2 py-1.5 gap-1 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] dark:shadow-[0_-4px_10px_rgba(0,0,0,0.2)]"
+        style={{ bottom: keyboardHeight > 0 ? keyboardHeight : 0, transition: 'bottom 0.1s ease-out' }}
+      >
+        <button
+          type="button"
+          onPointerDown={(e) => e.preventDefault()}
+          onClick={() => editor?.chain().focus().toggleBold().run()}
+          className={`p-2 rounded-md transition-colors ${editor?.isActive('bold') ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-800'}`}
+        >
+          <Bold className="w-5 h-5" />
+        </button>
+        <button
+          type="button"
+          onPointerDown={(e) => e.preventDefault()}
+          onClick={() => editor?.chain().focus().toggleItalic().run()}
+          className={`p-2 rounded-md transition-colors ${editor?.isActive('italic') ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-800'}`}
+        >
+          <Italic className="w-5 h-5" />
+        </button>
+        <button
+          type="button"
+          onPointerDown={(e) => e.preventDefault()}
+          onClick={() => editor?.chain().focus().toggleHighlight().run()}
+          className={`p-2 rounded-md transition-colors ${editor?.isActive('highlight') ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-800'}`}
+        >
+          <Highlighter className="w-5 h-5" />
+        </button>
+        <div className="w-px h-6 bg-zinc-300 dark:bg-zinc-700 mx-1"></div>
+        <button
+          type="button"
+          onPointerDown={(e) => e.preventDefault()}
+          onClick={handleWhisperToolClick}
+          className="flex items-center justify-center gap-1.5 p-2 px-3 rounded-md transition-colors text-blue-600 dark:text-blue-500 bg-blue-50 dark:bg-blue-900/30 font-medium"
+        >
+          <Lock className="w-5 h-5" />
+          <span className="text-sm">{t('menu.whisper')}</span>
+        </button>
+      </div>
+
     </div>
   );
 }
