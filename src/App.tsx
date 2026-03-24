@@ -10,7 +10,7 @@ import { useEffect, useRef } from "react";
 import { documentDir, join } from '@tauri-apps/api/path';
 import { useKeyboardHeight } from './hooks/useKeyboardHeight';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { ask, confirm } from '@tauri-apps/plugin-dialog';
+import { ask, confirm, open } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
 import { useAutoLock } from './hooks/useAutoLock';
 // import { Menu, Submenu, MenuItem, PredefinedMenuItem } from '@tauri-apps/api/menu';
@@ -42,11 +42,17 @@ function App() {
       localStorage.setItem('lazywhisper-active-doc', activeDocId);
     }
   }, [activeDocId]);
-  
+
   // Auto-focus trigger for Editor
   const [editorFocusTrigger, setEditorFocusTrigger] = useState<number>(0);
   const [unlockError, setUnlockError] = useState("");
   const [sessionKeys, setSessionKeys] = useState<Record<string, string>>({});
+
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [onboardingConflictPath, setOnboardingConflictPath] = useState<string | null>(null);
+  const [onboardingConflictDir, setOnboardingConflictDir] = useState<string | null>(null);
+  const [isCreatingNewWspace, setIsCreatingNewWspace] = useState(false);
+  const [newWspaceName, setNewWspaceName] = useState("");
 
   const [vaultPath, setVaultPath] = useState("");
   const [isPathReady, setIsPathReady] = useState(false);
@@ -67,7 +73,7 @@ function App() {
       const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
       document.documentElement.style.setProperty('--app-height', `${vh}px`);
       // Forcefully correct any iOS background wrapper panning
-      window.scrollTo(0, 0); 
+      window.scrollTo(0, 0);
     };
 
     const blockDocumentScroll = () => {
@@ -141,13 +147,13 @@ function App() {
     // A ref helper to avoid relying on outdated closures
     async function handleExternalWspaceOpen(path: string) {
       const { isLocked, hasUnsaved, vaultPath, documents } = autoLockRef.current;
-      
+
       if (path === vaultPath) return;
 
       if (!isLocked) {
         if (hasUnsaved) {
           const shouldSaveAndSwitch = await ask(
-            t('app.switchUnsavedMsg'), 
+            t('app.switchUnsavedMsg'),
             { title: `${t('window.title')} - ${t('app.switchUnsavedTitle')}`, kind: 'warning', okLabel: t('app.saveAndSwitch'), cancelLabel: t('app.cancel') }
           );
 
@@ -160,17 +166,17 @@ function App() {
               setUnsavedDocIds(new Set());
             } catch (e) {
               console.error("Failed to save before switching", e);
-              return; 
+              return;
             }
           } else {
-            return; 
+            return;
           }
         } else {
           const shouldSwitch = await confirm(
             t('app.switchConfirmMsg'),
             { title: `${t('window.title')} - ${t('app.switchConfirmTitle')}`, kind: 'info', okLabel: t('app.confirmSwitch'), cancelLabel: t('app.cancel') }
           );
-          
+
           if (!shouldSwitch) return;
         }
       }
@@ -213,8 +219,8 @@ function App() {
             hasHandledExternal = true;
             activePath = globalInitialColdPath;
             setVaultPath(activePath);
-            setIsVaultExists(true); 
-            
+            setIsVaultExists(true);
+
             setIsPathReady(true);
             setIsChecking(false);
             invoke('log_to_rust', { message: `🔴 [React] 最终决定加载的空间路径: ${activePath}` });
@@ -227,7 +233,7 @@ function App() {
             globalHandshakePromise = invoke<string[]>('frontend_is_ready');
           }
           const pendingPaths = await globalHandshakePromise;
-          
+
           if (pendingPaths.length > 0) {
             // Find the last legitimate path sent from OS
             const targetPath = pendingPaths.reverse().find(p => p.endsWith('.wspace'));
@@ -245,15 +251,15 @@ function App() {
             hasHandledExternal = true;
             activePath = globalInitialColdPath;
             setVaultPath(activePath);
-            setIsVaultExists(true); 
-            
+            setIsVaultExists(true);
+
             setIsPathReady(true);
             setIsChecking(false);
             invoke('log_to_rust', { message: `🔴 [React] 最终决定加载的空间路径: ${activePath}` });
             return; // EXIT EARLY! Do not load local storage historical defaults.
           }
         }
-        
+
         // 3. 【绝对降级】：队列为空，且没有收到打断事件，加载历史记录
         if (hasHandledExternal) return; // Prevent Late-arriving AppleEvent race condition from being clobbered!
 
@@ -262,9 +268,10 @@ function App() {
           if (storedPath) {
             activePath = storedPath;
           } else {
-            const docsDir = await documentDir();
-            activePath = await join(docsDir, 'LazyWhisper.wspace');
-            // localStorage.setItem('lazywhisper-vault-path', activePath); // Removed as per instruction
+            setNeedsOnboarding(true);
+            setIsPathReady(true);
+            setIsChecking(false);
+            return;
           }
         }
       } catch (err) {
@@ -279,7 +286,7 @@ function App() {
           const fileExists = await invoke<boolean>('check_vault_exists', { path: activePath });
           setIsVaultExists(fileExists);
         } catch (err) {
-          setIsVaultExists(false); 
+          setIsVaultExists(false);
         }
         setIsPathReady(true);
         setIsChecking(false);
@@ -487,9 +494,9 @@ function App() {
 
     // Layer 2: Global State Kill Switch — wipe all sensitive React state
     setIsSettingsOpen(false);
-    
+
     // Wipe Rust session password cache
-    invoke('clear_session').catch(() => {});
+    invoke('clear_session').catch(() => { });
     setHasActiveSession(false);
     setDocuments([]);
     setActiveDocId(null);
@@ -539,7 +546,7 @@ function App() {
 
   const handleDeleteDoc = async (id: string) => {
     if (autoLockRef.current.isLocked) return;
-    
+
     const isConfirm = await confirm(t('app.deleteConfirm'), {
       title: t('window.title') || 'LazyWhisper',
       kind: 'warning'
@@ -604,7 +611,7 @@ function App() {
 
   const handleChangePassword = async (oldPassword: string, newPassword: string) => {
     if (autoLockRef.current.isLocked) throw new Error('Security Error: App is locked');
-    
+
     // Delegate password verification and re-encryption to Rust
     await invoke('change_vault_password', {
       filename: vaultPath,
@@ -630,12 +637,208 @@ function App() {
   // Setup auto lock feature via Timestamp Polling (Heartbeat) extracted to custom hook
   useAutoLock({ autoLockRef, forceLock, lockInProgressRef });
 
+  const handlePrimaryOnboarding = async () => {
+    try {
+      const selectedDir = await open({ directory: true, multiple: false });
+      if (selectedDir && typeof selectedDir === 'string') {
+        const finalPath = await join(selectedDir, 'default.wspace');
+
+        try {
+          const fileExists = await invoke<boolean>('check_vault_exists', { path: finalPath });
+          if (fileExists) {
+            setOnboardingConflictPath(finalPath);
+            setOnboardingConflictDir(selectedDir);
+            return;
+          }
+        } catch { }
+
+        localStorage.setItem('lazywhisper-vault-path', finalPath);
+        setVaultPath(finalPath);
+        setIsVaultExists(false); // New space at custom path
+        setNeedsOnboarding(false);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSecondaryOnboarding = async () => {
+    try {
+      const docsDir = await documentDir();
+      const finalPath = await join(docsDir, 'default.wspace');
+
+      try {
+        const fileExists = await invoke<boolean>('check_vault_exists', { path: finalPath });
+        if (fileExists) {
+          setOnboardingConflictPath(finalPath);
+          setOnboardingConflictDir(docsDir);
+          return;
+        }
+      } catch { }
+
+      localStorage.setItem('lazywhisper-vault-path', finalPath);
+      setVaultPath(finalPath);
+      setIsVaultExists(false);
+      setNeedsOnboarding(false);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const confirmLoadExisting = () => {
+    if (!onboardingConflictPath) return;
+    localStorage.setItem('lazywhisper-vault-path', onboardingConflictPath);
+    setVaultPath(onboardingConflictPath);
+    setIsVaultExists(true);
+    setNeedsOnboarding(false);
+    setOnboardingConflictPath(null);
+    setOnboardingConflictDir(null);
+  };
+
+  const confirmCreateNew = async () => {
+    if (!onboardingConflictDir || !newWspaceName.trim()) return;
+    try {
+      let safeName = newWspaceName.trim();
+      if (!safeName.endsWith('.wspace')) {
+        safeName += '.wspace';
+      }
+      const finalPath = await join(onboardingConflictDir, safeName);
+      const fileExists = await invoke<boolean>('check_vault_exists', { path: finalPath }).catch(() => false);
+
+      localStorage.setItem('lazywhisper-vault-path', finalPath);
+      setVaultPath(finalPath);
+      setIsVaultExists(fileExists);
+      setNeedsOnboarding(false);
+      setOnboardingConflictPath(null);
+      setOnboardingConflictDir(null);
+      setIsCreatingNewWspace(false);
+      setNewWspaceName('');
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   if (!isPathReady || isChecking) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-white font-sans z-50">
         <div className="flex flex-col items-center gap-4">
           <img src="/logo.png" alt="LazyWhisper Logo" className="h-10 w-10 opacity-50 animate-pulse" />
           <div className="animate-pulse text-gray-400 tracking-widest text-xs uppercase font-bold">{t('app.scanning')}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (needsOnboarding) {
+    return (
+      <div className="fixed inset-0 w-full h-full flex flex-col items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-6 font-sans overflow-hidden z-50">
+        {/* ═══════ Whispering Aura: Mesh Gradient Background ═══════ */}
+        <div className="absolute w-96 h-96 top-[-10%] left-[-10%] rounded-full bg-indigo-300/40 dark:bg-indigo-900/40 blur-[120px] mix-blend-multiply dark:mix-blend-screen pointer-events-none" />
+        <div className="absolute w-96 h-96 top-[10%] right-[-10%] rounded-full bg-purple-300/40 dark:bg-purple-900/40 blur-[120px] mix-blend-multiply dark:mix-blend-screen pointer-events-none" />
+        <div className="absolute w-[30rem] h-[30rem] bottom-[-20%] left-[20%] rounded-full bg-sky-300/40 dark:bg-sky-900/40 blur-[120px] mix-blend-multiply dark:mix-blend-screen pointer-events-none" />
+
+        <div className="relative z-10 w-full max-w-md flex flex-col items-center text-center gap-8">
+
+          {onboardingConflictPath ? (
+            <div className="w-full backdrop-blur-2xl bg-white/60 dark:bg-zinc-900/60 border border-white/50 dark:border-zinc-800/50 rounded-3xl shadow-2xl p-6 flex flex-col gap-6 animate-in fade-in zoom-in-95 duration-300">
+              <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/30 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">{t('onboarding.foundTitle')}</h2>
+                <p className="text-[14px] text-zinc-500 dark:text-zinc-400 break-words px-2">
+                  {t('onboarding.foundDesc')}
+                </p>
+                <div className="bg-zinc-50 dark:bg-zinc-950 text-zinc-500 dark:text-zinc-400 text-[11px] font-mono p-2 rounded-lg mt-2 truncate text-left border border-zinc-100 dark:border-zinc-800" title={onboardingConflictPath}>
+                  ...{onboardingConflictPath.slice(-35)}
+                </div>
+              </div>
+
+              {!isCreatingNewWspace ? (
+                <div className="flex flex-col gap-3 w-full mt-2">
+                  <button
+                    onClick={confirmLoadExisting}
+                    className="w-full bg-brand hover:bg-brand-hover text-white rounded-xl py-3.5 px-4 font-semibold text-[15px] transition-all active:scale-[0.98] shadow-lg shadow-brand/25 flex items-center justify-center gap-2"
+                  >
+                    <span>{t('onboarding.loadExisting')}</span>
+                  </button>
+                  <button
+                    onClick={() => setIsCreatingNewWspace(true)}
+                    className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-xl py-3.5 px-4 font-medium text-[15px] transition-all active:scale-[0.98]"
+                  >
+                    {t('onboarding.createNew')}
+                  </button>
+                  <button
+                    onClick={() => { setOnboardingConflictPath(null); setOnboardingConflictDir(null); }}
+                    className="w-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 text-sm mt-1 transition-colors"
+                  >
+                    {t('onboarding.cancel')}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3 w-full mt-2 animate-in slide-in-from-right-4 duration-300">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={newWspaceName}
+                      onChange={(e) => setNewWspaceName(e.target.value)}
+                      placeholder={t('onboarding.newNamePlaceholder')}
+                      className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3.5 text-[15px] text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition-all pr-20"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') confirmCreateNew();
+                      }}
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 text-sm pointer-events-none">.wspace</span>
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={() => { setIsCreatingNewWspace(false); setNewWspaceName(''); }}
+                      className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-xl py-3 px-4 font-medium transition-all active:scale-[0.98]"
+                    >
+                      {t('onboarding.cancel')}
+                    </button>
+                    <button
+                      onClick={confirmCreateNew}
+                      disabled={!newWspaceName.trim()}
+                      className="flex-1 bg-brand hover:bg-brand-hover text-white rounded-xl py-3 px-4 font-semibold transition-all active:scale-[0.98] disabled:opacity-50"
+                    >
+                      {t('onboarding.confirmCreate')}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="w-20 h-20 bg-brand text-white rounded-3xl shadow-xl shadow-brand/20 flex items-center justify-center flex-shrink-0 animate-bounce-slow">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-10 h-10"><path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+              </div>
+              <div className="flex flex-col gap-3">
+                <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{t('onboarding.title')}</h1>
+                <p className="text-[15px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                  {t('onboarding.desc')}
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3 w-full mt-4">
+                <button
+                  onClick={handlePrimaryOnboarding}
+                  className="w-full bg-brand hover:bg-brand-hover text-white rounded-xl py-3.5 px-4 font-semibold text-[15px] transition-all active:scale-[0.98] shadow-lg shadow-brand/25 flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>
+                  {t('onboarding.primaryBtn')}
+                </button>
+                <button
+                  onClick={handleSecondaryOnboarding}
+                  className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-xl py-3.5 px-4 font-medium text-[15px] transition-all active:scale-[0.98]"
+                >
+                  {t('onboarding.secondaryBtn')}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
@@ -654,7 +857,7 @@ function App() {
         <div className="flex h-full w-full bg-white dark:bg-zinc-950 overflow-hidden">
           {/* 移动端毛玻璃遮罩 */}
           {isMobileMenuOpen && (
-            <div 
+            <div
               className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden transition-opacity"
               onClick={() => setIsMobileMenuOpen(false)}
             />
@@ -671,15 +874,15 @@ function App() {
             onDeleteDoc={handleDeleteDoc}
             unsavedDocIds={unsavedDocIds}
           />
-          
+
           <main className="flex-1 flex flex-col h-full relative overflow-hidden bg-white dark:bg-zinc-950">
             {/* 移动端顶部 Header (Native Look) */}
             <header className="md:hidden pt-[max(env(safe-area-inset-top),1rem)] border-b border-zinc-200/50 dark:border-zinc-800/50 flex flex-col bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md z-10 shrink-0">
               <div className="relative h-14 px-2 flex items-center justify-between">
                 <div className="flex items-center min-w-[4rem] z-10">
-                  <button 
-                    type="button" 
-                    onClick={() => setIsMobileMenuOpen(true)} 
+                  <button
+                    type="button"
+                    onClick={() => setIsMobileMenuOpen(true)}
                     className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-500 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors"
                     aria-label="Open Menu"
                   >
@@ -688,7 +891,7 @@ function App() {
                     </svg>
                   </button>
                 </div>
-                
+
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
                   <span className="font-semibold text-base text-zinc-900 dark:text-zinc-100 truncate px-16">
                     {t('sidebar.brand') || 'LazyWhisper'}
@@ -703,7 +906,7 @@ function App() {
 
             <div className="flex-1 w-full flex flex-col items-center overflow-y-auto overscroll-y-contain" style={{ paddingBottom: `max(env(safe-area-inset-bottom), ${keyboardHeight}px)` }}>
               {activeDoc ? (
-                <ZenEditor 
+                <ZenEditor
                   activeDoc={activeDoc}
                   documents={documents}
                   hasActiveSession={hasActiveSession}
