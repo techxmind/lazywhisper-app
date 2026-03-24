@@ -8,6 +8,7 @@ import { hashKey } from '../../utils/crypto';
 import { VaultDocument } from '../../App';
 import { save, open } from '@tauri-apps/plugin-dialog';
 import { useTranslation } from 'react-i18next';
+import { Extension } from '@tiptap/core';
 import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -24,6 +25,23 @@ function formatTime(timestamp: number): string {
   if (!timestamp) return '';
   return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
+
+const TabIndent = Extension.create({
+  name: 'tabIndent',
+  addKeyboardShortcuts() {
+    return {
+      Tab: () => {
+        // 1. Attempt native list hierarchical indentation first
+        if (this.editor.commands.sinkListItem('listItem')) {
+          return true;
+        }
+        // 2. If not in a list (or sink failed), intercept focus blur and inject immersive 4-space indent
+        return this.editor.commands.insertContent('    ');
+      },
+    };
+  },
+});
+
 interface ZenEditorProps {
   activeDoc: VaultDocument;
   documents: VaultDocument[];
@@ -184,6 +202,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
   const editor = useEditor({
     extensions: [
       StarterKit,
+      TabIndent,
       SearchAndReplace.configure({
         searchResultClass: 'search-result',
         disableRegex: true,
