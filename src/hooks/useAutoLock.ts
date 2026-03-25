@@ -56,7 +56,8 @@ export function useAutoLock({ autoLockRef, forceLock, lockInProgressRef }: UseAu
             console.log("🔒 [Auto-Lock] 检测到未保存数据，正在安全落盘...");
             await invoke('save_vault', {
               filename: state.vaultPath,
-              content: JSON.stringify(state.documents)
+              content: JSON.stringify(state.documents),
+              force_overwrite: true
             });
           } catch (error) {
             console.error("🚨 [Auto-Lock] 自动保存失败！", error);

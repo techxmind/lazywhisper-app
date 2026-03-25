@@ -12,6 +12,16 @@
     "core:window:allow-set-title",
     "core:menu:default",
     "dialog:default",
-    "core:event:default"
+    "core:event:default",
+    "os:default",
+    "fs:default",
+    "fs:allow-exists",
+    "fs:allow-copy-file",
+    "fs:allow-read-file",
+    "fs:allow-write-file",
+    "fs:allow-remove",
+    "fs:scope-document-recursive",
+    "fs:scope-download-recursive",
+    "fs:scope-desktop-recursive"
   ]
 }

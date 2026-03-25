@@ -7,7 +7,18 @@ import { invoke } from '@tauri-apps/api/core';
 import { hashKey } from '../../utils/crypto';
 import { VaultDocument } from '../../App';
 import { save, open } from '@tauri-apps/plugin-dialog';
+import { type } from '@tauri-apps/plugin-os';
+import { documentDir, join } from '@tauri-apps/api/path';
+import { copyFile, remove, exists } from '@tauri-apps/plugin-fs';
 import { useTranslation } from 'react-i18next';
+
+const isMobile = () => {
+  try {
+    return type() === 'ios' || type() === 'android';
+  } catch {
+    return false;
+  }
+};
 import { Extension } from '@tiptap/core';
 import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -270,9 +281,17 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
             if (coverText && encryptedSecret) {
               const rect = whisperSpan.getBoundingClientRect();
 
-              // Safely attempt to get node position (ProseMirror requires exact positions, not DOM nodes)
               let pos: number | undefined;
-              try { pos = _view.posAtDOM(whisperSpan, 0) - 1; } catch (e) { }
+              try {
+                const domPos = _view.posAtDOM(whisperSpan, 0);
+                for (let i = Math.max(0, domPos - 10); i <= domPos + 10; i++) {
+                  const node = _view.state.doc.nodeAt(i);
+                  if (node?.type.name === 'whisperNode' && node.attrs.encryptedSecret === encryptedSecret) {
+                    pos = i;
+                    break;
+                  }
+                }
+              } catch (e) { }
 
               if (sessionKeyRef.current) {
                 setActivePopoverData({ coverText, encryptedSecret, rect, pos });
@@ -302,7 +321,16 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
               const rect = whisperSpan.getBoundingClientRect();
 
               let pos: number | undefined;
-              try { pos = _view.posAtDOM(whisperSpan, 0) - 1; } catch (e) { }
+              try {
+                const domPos = _view.posAtDOM(whisperSpan, 0);
+                for (let i = Math.max(0, domPos - 10); i <= domPos + 10; i++) {
+                  const node = _view.state.doc.nodeAt(i);
+                  if (node?.type.name === 'whisperNode' && node.attrs.encryptedSecret === encryptedSecret) {
+                    pos = i;
+                    break;
+                  }
+                }
+              } catch (e) { }
 
               if (sessionKeyRef.current) {
                 setActivePopoverData({ coverText, encryptedSecret, rect, pos });
@@ -538,7 +566,8 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
           setActivePopoverData({
             coverText: activeRevealData.coverText,
             encryptedSecret: activeRevealData.encryptedSecret,
-            rect: activeRevealData.rect
+            rect: activeRevealData.rect,
+            pos: activeRevealData.pos
           });
           setIsRevealModalOpen(false);
           setActiveRevealData(null);
@@ -675,39 +704,100 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
   const handleExportSharedFile = async () => {
     if (!exportPassword.trim()) return;
 
+    let mobileTempPath = '';
+    let isSmuggled = false;
+
     try {
       setIsExporting(true);
-      const filePath = await save({
-        filters: [{
-          name: 'WhisperSpace Shared File',
-          extensions: ['wspace']
-        }]
-      });
 
-      if (filePath) {
-        const payloadToExport = exportScope === 'note' ? [activeDoc] : documents;
-        const content = JSON.stringify(payloadToExport);
+      const timestamp = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14); // YYYYMMDDHHMMSS
+      const defaultName = exportScope === 'note' && activeDoc
+        ? `${activeDoc.title || 'LazyWhisper_Note'}_${timestamp}.wspace`
+        : `LazyWhisper_Backup_${timestamp}.wspace`;
 
+      const payloadToExport = exportScope === 'note' ? [activeDoc] : documents;
+      const content = JSON.stringify(payloadToExport);
+      let finalSavePath: string | null = null;
+
+      if (isMobile()) {
+        // 1. Mobile Physical Pre-generation (Anti 0-Byte Ghost File Strategy)
+        mobileTempPath = await join(await documentDir(), defaultName);
+        isSmuggled = true;
+
+        // Write the real data to sandbox temp file FIRST
         await invoke('export_shared_file', {
-          filePath,
+          filePath: mobileTempPath,
           tempPassword: exportPassword,
           content
         });
 
-        setExportSuccess(true);
-        setTimeout(() => {
-          setExportSuccess(false);
-          setIsExportModalOpen(false);
-          setExportPassword('');
-          setExportScope('note'); // Reset
-        }, 1500);
+        // 2. Feed physical file absolute path to native dialog.save() defaultPath
+        finalSavePath = await save({
+          defaultPath: mobileTempPath,
+          filters: [{
+            name: 'WhisperSpace Exported File',
+            extensions: ['wspace']
+          }]
+        });
+
+        if (finalSavePath) {
+          // Manual transport to selected destination if paths differ
+          if (finalSavePath !== mobileTempPath) {
+            await copyFile(mobileTempPath, finalSavePath);
+          }
+        }
       } else {
-        setIsExportModalOpen(false);
+        // 1. Desktop Strategy (string defaultPath)
+        finalSavePath = await save({
+          defaultPath: defaultName,
+          filters: [{
+            name: 'WhisperSpace Exported File',
+            extensions: ['wspace']
+          }]
+        });
+
+        if (finalSavePath) {
+          await invoke('export_shared_file', {
+            filePath: finalSavePath,
+            tempPassword: exportPassword,
+            content
+          });
+        }
       }
+
+      // Check user cancellation
+      if (!finalSavePath) {
+        setIsExportModalOpen(false);
+        return;
+      }
+
+      // Success
+      setExportSuccess(true);
+      setTimeout(() => {
+        setExportSuccess(false);
+        setIsExportModalOpen(false);
+        setExportPassword('');
+        setExportScope('note'); // Reset
+      }, 1500);
+
     } catch (e) {
       console.error('Failed to export', e);
     } finally {
       setIsExporting(false);
+      
+      // 3. Ultimate lifecycle cleanup loop
+      if (isSmuggled && mobileTempPath) {
+        setTimeout(async () => {
+          try {
+            if (await exists(mobileTempPath)) {
+               await remove(mobileTempPath);
+               console.log('✅ Temporary Export Sandbox File Cleaned Up Safely.');
+            }
+          } catch (cleanupErr) {
+            console.error('❌ Failed to cleanup smuggler export temp file:', cleanupErr);
+          }
+        }, 500);
+      }
     }
   };
 
@@ -757,9 +847,18 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
     setImportError('');
     setIsImportDecrypting(true);
 
+    let smugglerPath = importFilePath;
+    let isSmuggled = false;
+
     try {
+      if (isMobile()) {
+        smugglerPath = await join(await documentDir(), `import_temp_${Date.now()}.wspace`);
+        await copyFile(importFilePath, smugglerPath);
+        isSmuggled = true;
+      }
+
       const rawContent = await invoke<string>('import_vault', {
-        filename: importFilePath,
+        filename: smugglerPath,
         password: importPassword,
       });
 
@@ -795,6 +894,17 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       setImportPassword(''); // SECURITY: wipe on failure too
       setImportError(t('import.passwordError'));
     } finally {
+      if (isSmuggled) {
+        // Add a small delay to ensure iOS/Rust releases any file locks
+        setTimeout(async () => {
+          try {
+            await remove(smugglerPath);
+            console.log('✅ Import temp file cleaned up successfully');
+          } catch (cleanupErr) {
+            console.error('❌ Failed to cleanup import temp file:', cleanupErr);
+          }
+        }, 500);
+      }
       setIsImportDecrypting(false);
     }
   };
@@ -866,12 +976,12 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
   };
 
 
-  const openSealModal = (text: string, pos?: number) => {
+  const openSealModal = (text: string, pos?: number | null) => {
     setCurrentCoverText(text);
     setRealSecret(text); // Default real secret to the selected text so they can edit it
     setSealError('');
     setConfirmWhisperKey('');
-    setCurrentEditPos(pos || null);
+    setCurrentEditPos(pos !== undefined ? pos : null);
 
     if (sessionWhisperKey) {
       // Scenario C: Session hit, silent seal directly?
@@ -918,13 +1028,14 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
     }
 
     if (currentEditPos !== null) {
-      editor.chain().focus()
-        .setNodeSelection(currentEditPos)
-        .setWhisperNode({
+      editor.view.dispatch(
+        editor.view.state.tr.setNodeMarkup(currentEditPos, undefined, {
           coverText: currentCoverText,
           encryptedSecret: encryptedSecret,
           originNoteId: activeDoc.id
-        }).run();
+        })
+      );
+      editor.commands.focus();
     } else {
       editor.chain().focus().setWhisperNode({
         coverText: currentCoverText,
@@ -987,7 +1098,8 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
         setActivePopoverData({
           coverText: activeRevealData.coverText,
           encryptedSecret: activeRevealData.encryptedSecret,
-          rect: activeRevealData.rect
+          rect: activeRevealData.rect,
+          pos: activeRevealData.pos
         });
         setIsRevealModalOpen(false);
         setActiveRevealData(null);
@@ -1707,7 +1819,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
                               setRealSecret(popoverDecryptedSecret);
                               setSealError('');
                               setConfirmWhisperKey('');
-                              setCurrentEditPos(activePopoverData.pos || null);
+                              setCurrentEditPos(activePopoverData.pos !== undefined ? activePopoverData.pos : null);
                               if (sessionWhisperKey) {
                                 setWhisperKey(sessionWhisperKey);
                               } else {

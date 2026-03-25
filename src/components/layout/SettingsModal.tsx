@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Key, Info } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { getVersion } from '@tauri-apps/api/app';
+import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -24,6 +25,7 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [appVersion, setAppVersion] = useState('');
+  const [cryptoVersion, setCryptoVersion] = useState('..');
   const { theme, setTheme } = useTheme();
 
   // UX State
@@ -46,6 +48,7 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
 
   useEffect(() => {
     getVersion().then(setAppVersion).catch(console.error);
+    invoke<string>('get_crypto_version').then(setCryptoVersion).catch(console.error);
   }, []);
 
   // MEDIUM-5: Zeroize password fields on unmount
@@ -244,7 +247,7 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
 
         <div className="mt-8 md:mt-0 border-gray-100 flex flex-col items-center justify-center shrink-0 mb-4 md:mb-0">
           <div className="text-sm font-semibold text-gray-700">{t('window.title')}</div>
-          <div className="text-xs text-gray-400 mt-1">{t('settings.version')} {appVersion} {t('settings.cryptoEngine')}</div>
+          <div className="text-xs text-gray-400 mt-1">{t('settings.version')} {appVersion} {t('settings.cryptoEngine', { version: cryptoVersion })}</div>
         </div>
         
         </div> {/* End of scrollable area */}

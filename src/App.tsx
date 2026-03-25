@@ -7,18 +7,22 @@ import { UnlockScreen } from "./components/layout/UnlockScreen";
 import { SettingsModal } from "./components/layout/SettingsModal";
 import { useTranslation } from "react-i18next";
 import { useEffect, useRef } from "react";
-import { documentDir, join } from '@tauri-apps/api/path';
 import { useKeyboardHeight } from './hooks/useKeyboardHeight';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { ask, confirm, open } from '@tauri-apps/plugin-dialog';
+import { ask, confirm, open, save } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
+import { type } from '@tauri-apps/plugin-os';
+import { documentDir, join, basename } from '@tauri-apps/api/path';
+import { exists, copyFile } from '@tauri-apps/plugin-fs';
 import { useAutoLock } from './hooks/useAutoLock';
+import { PlusSquare, FolderOpen } from 'lucide-react';
 // import { Menu, Submenu, MenuItem, PredefinedMenuItem } from '@tauri-apps/api/menu';
 import './index.css';
 
 // Module-level cache to shield Handshake from React 18 Strict Mode double-mounting
 let globalInitialColdPath: string | null | undefined = undefined;
 let globalHandshakePromise: Promise<string[]> | null = null;
+const isMobile = () => type() === 'ios' || type() === 'android';
 
 export interface VaultDocument {
   id: string;
@@ -49,15 +53,12 @@ function App() {
   const [sessionKeys, setSessionKeys] = useState<Record<string, string>>({});
 
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
-  const [onboardingConflictPath, setOnboardingConflictPath] = useState<string | null>(null);
-  const [onboardingConflictDir, setOnboardingConflictDir] = useState<string | null>(null);
-  const [isCreatingNewWspace, setIsCreatingNewWspace] = useState(false);
-  const [newWspaceName, setNewWspaceName] = useState("");
-
   const [vaultPath, setVaultPath] = useState("");
   const [isPathReady, setIsPathReady] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [isVaultExists, setIsVaultExists] = useState(true);
+  const [isForceOverwrite, setIsForceOverwrite] = useState(false);
+  const [onboardingConflictPath, setOnboardingConflictPath] = useState<string | null>(null);
   const [unsavedDocIds, setUnsavedDocIds] = useState<Set<string>>(new Set());
   const hasUnsavedChanges = unsavedDocIds.size > 0;
   const [autoLockMin, setAutoLockMin] = useState(() => Number(localStorage.getItem('lazywhisper-autolock-time') || 5));
@@ -103,7 +104,9 @@ function App() {
       try {
         //const appName = t('sidebar.brand') || 'LazyWhisper';
         const newTitle = t('window.title') || 'LazyWhisper';
-        await getCurrentWindow().setTitle(newTitle);
+        if (!isMobile()) {
+          await getCurrentWindow().setTitle(newTitle);
+        }
 
         // macOS native menu override
         /*
@@ -264,14 +267,35 @@ function App() {
         if (hasHandledExternal) return; // Prevent Late-arriving AppleEvent race condition from being clobbered!
 
         if (isMounted) {
-          const storedPath = localStorage.getItem('lazywhisper-vault-path');
-          if (storedPath) {
-            activePath = storedPath;
+          if (isMobile()) {
+            let pathFromStorage = localStorage.getItem('lazywhisper-vault-path');
+            if (pathFromStorage) {
+              const fileExists = await exists(pathFromStorage).catch(() => false);
+              if (fileExists) activePath = pathFromStorage;
+            }
+            
+            if (!activePath) {
+               activePath = await join(await documentDir(), 'LazyWhisper.wspace');
+            }
+            
+            const sandboxExists = await exists(activePath).catch(() => false);
+            if (!sandboxExists) {
+              setNeedsOnboarding(true);
+              setIsPathReady(true);
+              setIsChecking(false);
+              return;
+            }
+            localStorage.setItem('lazywhisper-vault-path', activePath);
           } else {
-            setNeedsOnboarding(true);
-            setIsPathReady(true);
-            setIsChecking(false);
-            return;
+            const storedPath = localStorage.getItem('lazywhisper-vault-path');
+            if (storedPath) {
+              activePath = storedPath;
+            } else {
+              setNeedsOnboarding(true);
+              setIsPathReady(true);
+              setIsChecking(false);
+              return;
+            }
           }
         }
       } catch (err) {
@@ -390,7 +414,8 @@ function App() {
 
       await invoke('save_vault', {
         filename: vaultPath,
-        content: JSON.stringify(initialDocs)
+        content: JSON.stringify(initialDocs),
+        force_overwrite: isForceOverwrite
       });
 
       setDocuments(initialDocs);
@@ -400,10 +425,12 @@ function App() {
       setIsLocked(false);
       setUnlockError("");
       setIsVaultExists(true); // Force sync immediately so unlock screen knows reality
+      setIsForceOverwrite(false); // Reset boundary
       return { success: true };
     } catch (error) {
-      console.error("Create vault failed", error);
+      console.error("Create workspace failed", error);
       setUnlockError(t("unlock.error"));
+      setIsForceOverwrite(false); // Reset boundary
       return { success: false };
     }
   };
@@ -412,7 +439,8 @@ function App() {
     try {
       await invoke('save_vault', {
         filename: targetPath,
-        content: JSON.stringify(targetDocuments)
+        content: JSON.stringify(targetDocuments),
+        force_overwrite: true
       });
       setUnsavedDocIds(new Set());
       return true;
@@ -637,84 +665,94 @@ function App() {
   // Setup auto lock feature via Timestamp Polling (Heartbeat) extracted to custom hook
   useAutoLock({ autoLockRef, forceLock, lockInProgressRef });
 
-  const handlePrimaryOnboarding = async () => {
+  const handleOnboardingCreateVault = async () => {
     try {
-      const selectedDir = await open({ directory: true, multiple: false });
-      if (selectedDir && typeof selectedDir === 'string') {
-        const finalPath = await join(selectedDir, 'default.wspace');
-
-        try {
-          const fileExists = await invoke<boolean>('check_vault_exists', { path: finalPath });
-          if (fileExists) {
-            setOnboardingConflictPath(finalPath);
-            setOnboardingConflictDir(selectedDir);
-            return;
-          }
-        } catch { }
-
-        localStorage.setItem('lazywhisper-vault-path', finalPath);
-        setVaultPath(finalPath);
-        setIsVaultExists(false); // New space at custom path
-        setNeedsOnboarding(false);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleSecondaryOnboarding = async () => {
-    try {
-      const docsDir = await documentDir();
-      const finalPath = await join(docsDir, 'default.wspace');
-
-      try {
-        const fileExists = await invoke<boolean>('check_vault_exists', { path: finalPath });
+      if (isMobile()) {
+        const safePath = await join(await documentDir(), 'LazyWhisper.wspace');
+        const fileExists = await exists(safePath);
+        
         if (fileExists) {
-          setOnboardingConflictPath(finalPath);
-          setOnboardingConflictDir(docsDir);
+          // INTERCEPT: File already exists in sandbox
+          setOnboardingConflictPath(safePath);
           return;
         }
-      } catch { }
 
-      localStorage.setItem('lazywhisper-vault-path', finalPath);
-      setVaultPath(finalPath);
-      setIsVaultExists(false);
-      setNeedsOnboarding(false);
+        // Normal Creation (Sandbox)
+        localStorage.setItem('lazywhisper-vault-path', safePath);
+        setVaultPath(safePath);
+        setIsVaultExists(false); // Creating a new one
+        setIsForceOverwrite(false);
+        setNeedsOnboarding(false);
+      } else {
+        const filePath = await save({
+          title: t('onboarding.createVaultTitle'),
+          defaultPath: 'LazyWhisper.wspace',
+          filters: [{ name: 'LazyWhisper Workspace', extensions: ['wspace'] }]
+        });
+
+        if (filePath && typeof filePath === 'string') {
+          const fileExists = await invoke<boolean>('check_vault_exists', { path: filePath }).catch(() => false);
+          
+          if (fileExists) {
+            // INTERCEPT: File already exists (Desktop OS dialog bypass or race)
+            setOnboardingConflictPath(filePath);
+            return;
+          }
+
+          // Normal Creation (Desktop)
+          localStorage.setItem('lazywhisper-vault-path', filePath);
+          setVaultPath(filePath);
+          setIsVaultExists(false); // Creating a new one
+          setIsForceOverwrite(false);
+          setNeedsOnboarding(false);
+        }
+      }
     } catch (e) {
       console.error(e);
+      alert(t('onboarding.error') + String(e));
     }
   };
 
-  const confirmLoadExisting = () => {
-    if (!onboardingConflictPath) return;
-    localStorage.setItem('lazywhisper-vault-path', onboardingConflictPath);
-    setVaultPath(onboardingConflictPath);
-    setIsVaultExists(true);
-    setNeedsOnboarding(false);
-    setOnboardingConflictPath(null);
-    setOnboardingConflictDir(null);
-  };
-
-  const confirmCreateNew = async () => {
-    if (!onboardingConflictDir || !newWspaceName.trim()) return;
+  const handleOnboardingOpenVault = async () => {
     try {
-      let safeName = newWspaceName.trim();
-      if (!safeName.endsWith('.wspace')) {
-        safeName += '.wspace';
-      }
-      const finalPath = await join(onboardingConflictDir, safeName);
-      const fileExists = await invoke<boolean>('check_vault_exists', { path: finalPath }).catch(() => false);
+      const filePath = await open({
+        title: t('onboarding.openVaultTitle'),
+        multiple: false,
+        directory: false,
+        filters: [{ name: 'LazyWhisper Workspace', extensions: ['wspace'] }]
+      });
 
-      localStorage.setItem('lazywhisper-vault-path', finalPath);
-      setVaultPath(finalPath);
-      setIsVaultExists(fileExists);
-      setNeedsOnboarding(false);
-      setOnboardingConflictPath(null);
-      setOnboardingConflictDir(null);
-      setIsCreatingNewWspace(false);
-      setNewWspaceName('');
+      if (filePath && typeof filePath === 'string') {
+        if (isMobile()) {
+          const originalFileName = await basename(filePath);
+          const nameWithoutExt = originalFileName.replace(/\.wspace$/, '');
+
+          const timestamp = Date.now();
+          const safeFileName = `${nameWithoutExt}_imported_${timestamp}.wspace`; 
+          const safePath = await join(await documentDir(), safeFileName);
+          
+          if (filePath !== safePath) {
+            await copyFile(filePath, safePath);
+          }
+          
+          setIsVaultExists(true); // Treat as existing, go to Unlock screen
+          localStorage.setItem('lazywhisper-vault-path', safePath);
+          setVaultPath(safePath);
+          setNeedsOnboarding(false);
+
+        } else {
+          // Standard Desktop Flow
+          const fileExists = await invoke<boolean>('check_vault_exists', { path: filePath }).catch(() => false);
+          setIsVaultExists(fileExists);
+
+          localStorage.setItem('lazywhisper-vault-path', filePath);
+          setVaultPath(filePath);
+          setNeedsOnboarding(false);
+        }
+      }
     } catch (e) {
       console.error(e);
+      alert(t('onboarding.error') + String(e));
     }
   };
 
@@ -730,6 +768,67 @@ function App() {
   }
 
   if (needsOnboarding) {
+    if (onboardingConflictPath) {
+      return (
+        <div className="fixed inset-0 w-full h-full flex items-center justify-center bg-zinc-900/40 backdrop-blur-sm z-50 px-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 p-6 w-full max-w-sm flex flex-col gap-5 animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="flex flex-col gap-2">
+              <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                <FolderOpen className="w-5 h-5 text-amber-500" />
+                {t('unlock.conflictTitle')}
+              </h2>
+              <p className="text-[14px] text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                {t('unlock.conflictMessage')}
+              </p>
+            </div>
+            
+            <div className="flex flex-col gap-3 mt-2">
+              <button
+                onClick={() => {
+                  localStorage.setItem('lazywhisper-vault-path', onboardingConflictPath);
+                  setVaultPath(onboardingConflictPath);
+                  setIsVaultExists(true); // Route to unlock!
+                  setIsForceOverwrite(false);
+                  setOnboardingConflictPath(null);
+                  setNeedsOnboarding(false);
+                }}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-3 font-medium transition-colors text-[14px]"
+              >
+                {t('unlock.conflictOpen')}
+              </button>
+              
+              <button
+                onClick={async () => {
+                  const confirmed = await confirm(t('unlock.overwriteConfirmMessage'), {
+                    title: t('unlock.overwriteConfirmTitle'),
+                    kind: 'warning'
+                  });
+                  if (confirmed) {
+                    localStorage.setItem('lazywhisper-vault-path', onboardingConflictPath);
+                    setVaultPath(onboardingConflictPath);
+                    setIsVaultExists(false); // Route to create!
+                    setIsForceOverwrite(true); // FLAG TO WIPE IT!
+                    setOnboardingConflictPath(null);
+                    setNeedsOnboarding(false);
+                  }
+                }}
+                className="w-full bg-zinc-100 dark:bg-zinc-800 hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl py-3 font-medium transition-colors border border-transparent hover:border-red-200 dark:hover:border-red-800/50 text-[14px]"
+              >
+                {t('unlock.conflictOverwrite')}
+              </button>
+              
+              <button
+                onClick={() => setOnboardingConflictPath(null)}
+                className="w-full text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300 text-[14px] font-medium py-2 transition-colors mt-1"
+              >
+                {t('unlock.conflictCancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="fixed inset-0 w-full h-full flex flex-col items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-6 font-sans overflow-hidden z-50">
         {/* ═══════ Whispering Aura: Mesh Gradient Background ═══════ */}
@@ -739,106 +838,53 @@ function App() {
 
         <div className="relative z-10 w-full max-w-md flex flex-col items-center text-center gap-8">
 
-          {onboardingConflictPath ? (
-            <div className="w-full backdrop-blur-2xl bg-white/60 dark:bg-zinc-900/60 border border-white/50 dark:border-zinc-800/50 rounded-3xl shadow-2xl p-6 flex flex-col gap-6 animate-in fade-in zoom-in-95 duration-300">
-              <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/30 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-2">
-                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">{t('onboarding.foundTitle')}</h2>
-                <p className="text-[14px] text-zinc-500 dark:text-zinc-400 break-words px-2">
-                  {t('onboarding.foundDesc')}
-                </p>
-                <div className="bg-zinc-50 dark:bg-zinc-950 text-zinc-500 dark:text-zinc-400 text-[11px] font-mono p-2 rounded-lg mt-2 truncate text-left border border-zinc-100 dark:border-zinc-800" title={onboardingConflictPath}>
-                  ...{onboardingConflictPath.slice(-35)}
-                </div>
-              </div>
-
-              {!isCreatingNewWspace ? (
-                <div className="flex flex-col gap-3 w-full mt-2">
-                  <button
-                    onClick={confirmLoadExisting}
-                    className="w-full bg-brand hover:bg-brand-hover text-white rounded-xl py-3.5 px-4 font-semibold text-[15px] transition-all active:scale-[0.98] shadow-lg shadow-brand/25 flex items-center justify-center gap-2"
-                  >
-                    <span>{t('onboarding.loadExisting')}</span>
-                  </button>
-                  <button
-                    onClick={() => setIsCreatingNewWspace(true)}
-                    className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-xl py-3.5 px-4 font-medium text-[15px] transition-all active:scale-[0.98]"
-                  >
-                    {t('onboarding.createNew')}
-                  </button>
-                  <button
-                    onClick={() => { setOnboardingConflictPath(null); setOnboardingConflictDir(null); }}
-                    className="w-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 text-sm mt-1 transition-colors"
-                  >
-                    {t('onboarding.cancel')}
-                  </button>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3 w-full mt-2 animate-in slide-in-from-right-4 duration-300">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      autoFocus
-                      value={newWspaceName}
-                      onChange={(e) => setNewWspaceName(e.target.value)}
-                      placeholder={t('onboarding.newNamePlaceholder')}
-                      className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3.5 text-[15px] text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition-all pr-20"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') confirmCreateNew();
-                      }}
-                    />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 text-sm pointer-events-none">.wspace</span>
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    <button
-                      onClick={() => { setIsCreatingNewWspace(false); setNewWspaceName(''); }}
-                      className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-xl py-3 px-4 font-medium transition-all active:scale-[0.98]"
-                    >
-                      {t('onboarding.cancel')}
-                    </button>
-                    <button
-                      onClick={confirmCreateNew}
-                      disabled={!newWspaceName.trim()}
-                      className="flex-1 bg-brand hover:bg-brand-hover text-white rounded-xl py-3 px-4 font-semibold transition-all active:scale-[0.98] disabled:opacity-50"
-                    >
-                      {t('onboarding.confirmCreate')}
-                    </button>
-                  </div>
-                </div>
-              )}
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-20 h-20 bg-brand text-white rounded-3xl shadow-xl shadow-brand/20 flex items-center justify-center flex-shrink-0 animate-bounce-slow">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-10 h-10"><path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
             </div>
-          ) : (
-            <>
-              <div className="w-20 h-20 bg-brand text-white rounded-3xl shadow-xl shadow-brand/20 flex items-center justify-center flex-shrink-0 animate-bounce-slow">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-10 h-10"><path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-              </div>
-              <div className="flex flex-col gap-3">
-                <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{t('onboarding.title')}</h1>
-                <p className="text-[15px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                  {t('onboarding.desc')}
-                </p>
-              </div>
+            <div className="flex flex-col gap-3">
+              <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{t('onboarding.title')}</h1>
+              <p className="text-[15px] text-zinc-500 dark:text-zinc-400 leading-relaxed px-4">
+                {t('onboarding.desc')}
+              </p>
+            </div>
+          </div>
 
-              <div className="flex flex-col gap-3 w-full mt-4">
-                <button
-                  onClick={handlePrimaryOnboarding}
-                  className="w-full bg-brand hover:bg-brand-hover text-white rounded-xl py-3.5 px-4 font-semibold text-[15px] transition-all active:scale-[0.98] shadow-lg shadow-brand/25 flex items-center justify-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>
-                  {t('onboarding.primaryBtn')}
-                </button>
-                <button
-                  onClick={handleSecondaryOnboarding}
-                  className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-xl py-3.5 px-4 font-medium text-[15px] transition-all active:scale-[0.98]"
-                >
-                  {t('onboarding.secondaryBtn')}
-                </button>
+          <div className="flex flex-col gap-4 w-full px-2">
+            <button
+              onClick={handleOnboardingCreateVault}
+              className="group relative w-full bg-blue-50/40 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800/50 rounded-2xl p-4 flex items-center gap-4 transition-all duration-200 hover:border-blue-400 hover:shadow-sm hover:bg-white/90 dark:hover:bg-zinc-800/80 active:scale-[0.98]"
+            >
+              <div className="flex-shrink-0 flex items-center justify-center p-2 rounded-xl bg-blue-100/60 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400">
+                <PlusSquare className="w-6 h-6 stroke-[1.5]" />
               </div>
-            </>
-          )}
+              <div className="flex flex-col text-left">
+                <div className="font-semibold text-[16px] text-zinc-900 dark:text-zinc-100">
+                  {t('onboarding.createVault')}
+                </div>
+                <div className="text-[13px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
+                  {t('onboarding.createVaultDesc')}
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={handleOnboardingOpenVault}
+              className="group relative w-full bg-transparent border border-zinc-200 dark:border-zinc-800/60 rounded-2xl p-4 flex items-center gap-4 transition-all duration-200 hover:border-blue-400 hover:shadow-sm hover:bg-white/90 dark:hover:bg-zinc-800/80 active:scale-[0.98]"
+            >
+              <div className="flex-shrink-0 flex items-center justify-center p-2 rounded-xl bg-zinc-100/60 dark:bg-zinc-800/60 text-gray-600 dark:text-zinc-400">
+                <FolderOpen className="w-6 h-6 stroke-[1.5]" />
+              </div>
+              <div className="flex flex-col text-left">
+                <div className="font-semibold text-[16px] text-zinc-900 dark:text-zinc-100">
+                  {t('onboarding.openVault')}
+                </div>
+                <div className="text-[13px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
+                  {t('onboarding.openVaultDesc')}
+                </div>
+              </div>
+            </button>
+          </div>
         </div>
       </div>
     );

@@ -94,8 +94,12 @@ fn write_debug_log(_msg: &str) {
 }
 
 #[tauri::command]
-fn save_vault(filename: String, content: String) -> Result<bool, String> {
+fn save_vault(filename: String, content: String, force_overwrite: Option<bool>) -> Result<bool, String> {
     let file_path = sanitize_vault_path(&filename)?;
+
+    if force_overwrite.unwrap_or(false) && file_path.exists() {
+        std::fs::remove_file(&file_path).map_err(|e| sanitize_io_error("Failed to remove existing workspace", &e))?;
+    }
 
     // Read password from session cache — never passed from frontend
     let password_z = {
@@ -298,6 +302,11 @@ fn decrypt_secret(ciphertext: String, key: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn get_crypto_version() -> String {
+    CURRENT_CRYPTO_VERSION.to_string()
+}
+
+#[tauri::command]
 fn log_to_rust(message: String) {
     println!("[React 穿透日志] {}", message);
     write_debug_log(&format!("⚛️ [REACT] {}", message));
@@ -448,6 +457,7 @@ pub fn run() {
     }
 
     builder
+        .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -464,6 +474,7 @@ pub fn run() {
             cache_session_password,
             clear_session,
             change_vault_password,
+            get_crypto_version,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
