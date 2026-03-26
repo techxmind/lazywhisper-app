@@ -81,12 +81,12 @@ export const WhisperNode = Node.create<WhisperOptions>({
     return {
       setWhisperNode:
         (attributes) =>
-        ({ commands }) => {
-          return commands.insertContent({
-            type: this.name,
-            attrs: attributes,
-          });
-        },
+          ({ commands }) => {
+            return commands.insertContent({
+              type: this.name,
+              attrs: attributes,
+            });
+          },
     };
   },
 });

@@ -4,11 +4,14 @@
 
 @theme {
   /* Brand color: Minimalist Pure Blue */
-  --color-brand: #2563eb; /* blue-600 */
+  --color-brand: #2563eb;
+  /* blue-600 */
 
   /* Neutral palette */
-  --color-foreground: #111827; /* gray-900 */
-  --color-background: #ffffff; /* white */
+  --color-foreground: #111827;
+  /* gray-900 */
+  --color-background: #ffffff;
+  /* white */
 
   /* Flatten all shadows based on architectural decisions */
   --shadow-sm: none;
@@ -36,7 +39,9 @@
 
 /* Global Styles */
 @layer base {
-  html, body {
+
+  html,
+  body {
     position: fixed;
     top: 0;
     left: 0;
@@ -81,6 +86,7 @@
 }
 
 @layer components {
+
   /* 默认状态：绝对隐蔽，没有任何样式区别 */
   .whisper-mark {
     /* No styles! Must inherit perfectly. */
@@ -97,20 +103,22 @@
 
   /* Tiptap Placeholder Fix */
   .ProseMirror p.is-editor-empty:first-child::before {
-    color: #9ca3af; /* gray-400 */
+    color: #9ca3af;
+    /* gray-400 */
     content: attr(data-placeholder);
     position: absolute;
     pointer-events: none;
   }
 
   /* Collapse top margin on first child to prevent phantom cursor gap */
-  .ProseMirror > :first-child {
+  .ProseMirror> :first-child {
     margin-top: 0 !important;
   }
 
   .ProseMirror p {
     position: relative;
-    min-height: 1.625em; /* Match Tailwind leading-relaxed */
+    min-height: 1.625em;
+    /* Match Tailwind leading-relaxed */
     margin-bottom: 0.5em;
     outline: none;
   }
@@ -122,54 +130,60 @@
   }
 }
 
-/* WhisperNode Visual Hint — Light Mode */
 .whisper-mark {
-  border-bottom: 2px solid #e5e7eb; /* gray-200 */
-  cursor: pointer;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
   display: inline-block;
-  padding: 0.125rem 0.375rem; /* px-1.5 py-0.5 */
   margin: 0 0.125rem;
+  padding: 0.125rem 0.375rem;
   border-radius: 0.375rem;
-  font-weight: 500;
-  color: #374151; /* gray-700 */
-  background-color: #f4f4f5; /* zinc-100 */
+  background-color: transparent !important;
+  background-image: linear-gradient(to top, #4A7AD2 0%, #4A7AD2 100%);
+  background-repeat: no-repeat;
+  background-position: bottom;
+  background-size: 100% 25%;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: inherit;
+  cursor: pointer;
 }
+
 .whisper-mark:hover {
-  background-color: #e4e4e7; /* zinc-200 */
-  border-bottom-color: #d1d5db; /* gray-300 */
+  background-size: 100% 100%;
+  background-image: linear-gradient(to top, #4A7AD2 0%, #4A7AD2 100%);
+  color: #ffffff !important;
 }
 
 /* WhisperNode Visual Hint — Dark Mode */
 .dark .whisper-mark {
-  color: #d4d4d8; /* zinc-300 */
-  background-color: rgba(63, 63, 70, 0.5); /* zinc-700/50 */
-  border-bottom-color: #3f3f46; /* zinc-700 */
+  color: #d4d4d8;
 }
-.dark .whisper-mark:hover {
-  background-color: rgba(63, 63, 70, 0.8); /* zinc-700/80 */
-  border-bottom-color: #52525b; /* zinc-600 */
-}
+
+.dark .whisper-mark:hover {}
 
 /* Search & Replace — Match Highlights */
 .search-result {
-  background-color: #fef08a; /* yellow-200 */
+  background-color: #fef08a;
+  /* yellow-200 */
   border-radius: 2px;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
+
 .search-result-current {
-  background-color: #facc15; /* yellow-400 */
-  outline: 2px solid #eab308; /* yellow-500 */
+  background-color: #facc15;
+  /* yellow-400 */
+  outline: 2px solid #eab308;
+  /* yellow-500 */
   outline-offset: -1px;
 }
 
 /* Search & Replace — Dark Mode */
 .dark .search-result {
-  background-color: rgba(161, 98, 7, 0.35); /* yellow-700/35 */
-}
-.dark .search-result-current {
-  background-color: rgba(202, 138, 4, 0.55); /* yellow-600/55 */
-  outline-color: #ca8a04; /* yellow-600 */
+  background-color: rgba(161, 98, 7, 0.35);
+  /* yellow-700/35 */
 }
 
+.dark .search-result-current {
+  background-color: rgba(202, 138, 4, 0.55);
+  /* yellow-600/55 */
+  outline-color: #ca8a04;
+  /* yellow-600 */
+}
