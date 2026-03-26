@@ -66,13 +66,12 @@ interface ZenEditorProps {
   isSaving: boolean;
   isSaved: boolean;
   lastSavedTimestamp: number;
-  editorFocusTrigger?: number;
   editorInstanceRef?: React.MutableRefObject<{ destroy: () => void; commands: { clearContent: (emitUpdate?: boolean) => boolean } } | null>;
   onImportDocs?: (docs: VaultDocument[]) => Promise<void>;
   currentVaultPath?: string;
 }
 
-export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sessionWhisperKey, onSetSessionWhisperKey, onUpdateDocHash, onContentChange, onSave, hasUnsavedChanges, isSaving, isSaved, lastSavedTimestamp, editorFocusTrigger, editorInstanceRef, onImportDocs, currentVaultPath }: ZenEditorProps) {
+export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sessionWhisperKey, onSetSessionWhisperKey, onUpdateDocHash, onContentChange, onSave, hasUnsavedChanges, isSaving, isSaved, lastSavedTimestamp, editorInstanceRef, onImportDocs, currentVaultPath }: ZenEditorProps) {
   const { t, i18n } = useTranslation();
 
   const [mobileHeaderNode, setMobileHeaderNode] = useState<Element | null>(null);
@@ -482,6 +481,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
         prevDocIdRef.current = activeDoc.id;
         const contentIsEmpty = !activeDoc.content || activeDoc.content === '<p></p>' || activeDoc.content === '';
         if (contentIsEmpty) {
+          console.log("ContentIsEmpty,AutoFocus to end");
           const timer = setTimeout(() => {
             if (!editor.isDestroyed) {
               editor.commands.focus('end');
@@ -492,19 +492,6 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       }
     }
   }, [activeDoc.id, editor, activeDoc.content, activeDoc.title, t]); // rely on doc ID swap
-
-  // Global UX AutoFocus for New Note creation
-  useEffect(() => {
-    if (editorFocusTrigger && editorFocusTrigger > 0 && editor && !editor.isDestroyed) {
-      // Small buffer to let React state flush the new activeDoc
-      const timer = setTimeout(() => {
-        if (!editor.isDestroyed) {
-          editor.commands.focus('end');
-        }
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [editorFocusTrigger, editor]);
 
   // ═══════ iOS Keyboard: focus-based padding + delayed scrollIntoView ═══════
   const keyboardHeight = useKeyboardHeight();
@@ -598,6 +585,24 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
     return () => clearInterval(interval);
   }, [revealLockoutEndTime]);
+
+  // Dismiss Whispering Popover on ANY global scrolling/resize to prevent floating detachment
+  useEffect(() => {
+    if (!activePopoverData) return;
+    const handleScrollOrResize = (e: Event) => {
+      // Don't dismiss if scrolling INSIDE the popover itself (e.g. reading a long secret)
+      if ((e.target as HTMLElement)?.closest?.('.whisper-popover-container')) return;
+      setActivePopoverData(null);
+    };
+
+    window.addEventListener('scroll', handleScrollOrResize, true); // true = capture phase
+    window.addEventListener('resize', handleScrollOrResize);
+
+    return () => {
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      window.removeEventListener('resize', handleScrollOrResize);
+    };
+  }, [activePopoverData]);
 
   // Popover Decryption Effect
   useEffect(() => {
@@ -1092,13 +1097,26 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
           key: revealKey
         });
 
+        // RE-CALCULATE RECT! Modal keyboard/layout likely mutated scroll space
+        let freshRect = activeRevealData.rect;
+        if (editor && activeRevealData.pos !== undefined) {
+          try {
+            const nodeDom = editor.view.nodeDOM(activeRevealData.pos);
+            if (nodeDom instanceof HTMLElement) {
+              freshRect = nodeDom.getBoundingClientRect();
+            }
+          } catch (e) {
+            console.error("Failed to dynamically fetch fresh bounds:", e);
+          }
+        }
+
         // Zero-click Handoff
         onSetSessionWhisperKey(revealKey);
         setRevealError('');
         setActivePopoverData({
           coverText: activeRevealData.coverText,
           encryptedSecret: activeRevealData.encryptedSecret,
-          rect: activeRevealData.rect,
+          rect: freshRect,
           pos: activeRevealData.pos
         });
         setIsRevealModalOpen(false);
@@ -1194,7 +1212,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
           shouldShow={({ state, from, to }) => {
             // Tiptap native state checks
             if (isRevealModalOpen || isSealModalOpen) return false;
-            
+
             if (typeof window !== 'undefined' && window.innerWidth < 768) return false;
 
             // Allow Tiptap state checking
@@ -1405,7 +1423,6 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
         <EditorContent
           editor={editor}
           className="w-full flex-1 focus:outline-none border-none outline-none ring-0 h-full"
-          onClick={() => editor?.commands.focus()}
         />
 
 
