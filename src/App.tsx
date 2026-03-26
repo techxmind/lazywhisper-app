@@ -4,6 +4,7 @@ import { WhisperRadarProvider } from "./contexts/WhisperRadarContext";
 import { Sidebar } from "./components/layout/Sidebar";
 import { ZenEditor } from "./components/editor/ZenEditor";
 import { UnlockScreen } from "./components/layout/UnlockScreen";
+import { GhostPathScreen } from "./components/layout/GhostPathScreen";
 import { SettingsModal } from "./components/layout/SettingsModal";
 import { useTranslation } from "react-i18next";
 import { useEffect, useRef } from "react";
@@ -67,6 +68,7 @@ function App() {
   const setVaultPath = useAppStore(s => s.setVaultPath);
   const [isPathReady, setIsPathReady] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
+  const [isGhostPath, setIsGhostPath] = useState(false);
   const [isVaultExists, setIsVaultExists] = useState(true);
   const [isForceOverwrite, setIsForceOverwrite] = useState(false);
   const [onboardingConflictPath, setOnboardingConflictPath] = useState<string | null>(null);
@@ -319,12 +321,23 @@ function App() {
       if (isMounted) {
         setVaultPath(activePath);
         invoke('log_to_rust', { message: `🔴 [React] 最终决定加载的空间路径: ${activePath}` });
+        let fileExists = false;
         try {
-          const fileExists = await invoke<boolean>('check_vault_exists', { path: activePath });
+          fileExists = await invoke<boolean>('check_vault_exists', { path: activePath });
           setIsVaultExists(fileExists);
         } catch (err) {
           setIsVaultExists(false);
         }
+        
+        // Ghost Path Detection: Only triggers on unhandled historical cold bootstraps where file was physically deleted
+        if (!hasHandledExternal && !fileExists) {
+           console.log(`👻 [Ghost Path] Detected missing vault: ${activePath}`);
+           invoke('log_to_rust', { message: `👻 [React] 幽灵路径拦截器触发！路径已丢失: ${activePath}, hasHandledExternal: ${hasHandledExternal}` }).catch(() => {});
+           setIsGhostPath(true);
+        } else {
+           console.log(`✅ [Ghost Path] Check passed. FileExists: ${fileExists}, External: ${hasHandledExternal}`);
+        }
+
         setIsPathReady(true);
         setIsChecking(false);
       }
@@ -647,6 +660,7 @@ function App() {
     setVaultPath(newPath);
     setVaultPath(newPath);
     forceLock();
+    setIsGhostPath(false); // Ensure Ghost Path is disabled on manual switches
     setIsChecking(false);
   };
 
@@ -777,6 +791,23 @@ function App() {
           <div className="animate-pulse text-gray-400 tracking-widest text-xs uppercase font-bold">{t('app.scanning')}</div>
         </div>
       </div>
+    );
+  }
+
+  if (isGhostPath) {
+    return (
+      <GhostPathScreen 
+        vaultPath={vaultPath}
+        onFindBackup={handleOnboardingOpenVault}
+        onResetToOnboarding={() => {
+          setIsGhostPath(false);
+          setNeedsOnboarding(true);
+        }}
+        onForceRecreate={() => {
+          setIsGhostPath(false);
+          setIsVaultExists(false); // Falls straight into Create Password mode
+        }}
+      />
     );
   }
 
