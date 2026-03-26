@@ -304,7 +304,7 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
-    lng: localStorage.getItem('lazywhisper-lang') || 'en', // default language
+    lng: 'en', // dynamically injected in main.tsx from native store
     fallbackLng: 'en',
     interpolation: {
       escapeValue: false, // react already safes from xss

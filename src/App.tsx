@@ -11,6 +11,7 @@ import { useKeyboardHeight } from './hooks/useKeyboardHeight';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { ask, confirm, open, save } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
+import { useAppStore } from './store';
 import { type } from '@tauri-apps/plugin-os';
 import { documentDir, join, basename } from '@tauri-apps/api/path';
 import { exists, copyFile } from '@tauri-apps/plugin-fs';
@@ -38,14 +39,23 @@ function App() {
   // HIGH-1 Fix: Password no longer stored in React state. Lives in Rust SESSION_PASSWORD cache.
   const [hasActiveSession, setHasActiveSession] = useState(false);
   const [documents, setDocuments] = useState<VaultDocument[]>([]);
-  const [activeDocId, setActiveDocId] = useState<string | null>(null);
+  
+  const activeDocId = useAppStore(s => s.activeDocId);
+  const setActiveDocId = useAppStore(s => s.setActiveDocId);
 
-  // Persist last active doc to localStorage for restore-on-unlock
+  // Phase 3 Window Cloaking: Reveal the native OS window only after React is fully hydrated
   useEffect(() => {
-    if (activeDocId) {
-      localStorage.setItem('lazywhisper-active-doc', activeDocId);
+    // 1. Desktop: Show the cloaked main window
+    getCurrentWindow().show().catch(() => {});
+    
+    // 2. Mobile: Instruct the native OS to dismiss the Launch Screen (if plugin registered) 
+    if (isMobile()) {
+      invoke('plugin:splashscreen|hide').catch(() => {
+        // Fallback or ignore if no community splash plugin is installed, 
+        // iOS will automatically drop the launch screen anyway when JS executes.
+      });
     }
-  }, [activeDocId]);
+  }, []);
 
   // Auto-focus trigger for Editor
   const [editorFocusTrigger, setEditorFocusTrigger] = useState<number>(0);
@@ -53,7 +63,8 @@ function App() {
   const [sessionKeys, setSessionKeys] = useState<Record<string, string>>({});
 
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
-  const [vaultPath, setVaultPath] = useState("");
+  const vaultPath = useAppStore(s => s.vaultPath) || "";
+  const setVaultPath = useAppStore(s => s.setVaultPath);
   const [isPathReady, setIsPathReady] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [isVaultExists, setIsVaultExists] = useState(true);
@@ -61,7 +72,9 @@ function App() {
   const [onboardingConflictPath, setOnboardingConflictPath] = useState<string | null>(null);
   const [unsavedDocIds, setUnsavedDocIds] = useState<Set<string>>(new Set());
   const hasUnsavedChanges = unsavedDocIds.size > 0;
-  const [autoLockMin, setAutoLockMin] = useState(() => Number(localStorage.getItem('lazywhisper-autolock-time') || 5));
+  
+  const autoLockMin = useAppStore(s => s.autoLockMin);
+  const setAutoLockMin = useAppStore(s => s.setAutoLockMin);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
@@ -268,7 +281,7 @@ function App() {
 
         if (isMounted) {
           if (isMobile()) {
-            let pathFromStorage = localStorage.getItem('lazywhisper-vault-path');
+            let pathFromStorage = useAppStore.getState().vaultPath;
             if (pathFromStorage) {
               const fileExists = await exists(pathFromStorage).catch(() => false);
               if (fileExists) activePath = pathFromStorage;
@@ -285,9 +298,9 @@ function App() {
               setIsChecking(false);
               return;
             }
-            localStorage.setItem('lazywhisper-vault-path', activePath);
+            useAppStore.getState().setVaultPath(activePath);
           } else {
-            const storedPath = localStorage.getItem('lazywhisper-vault-path');
+            const storedPath = useAppStore.getState().vaultPath;
             if (storedPath) {
               activePath = storedPath;
             } else {
@@ -376,7 +389,7 @@ function App() {
 
       setDocuments(parsedDocs);
       // Restore last active doc, fallback to first doc
-      const lastDocId = localStorage.getItem('lazywhisper-active-doc');
+      const lastDocId = useAppStore.getState().activeDocId;
       const restoredDoc = lastDocId && parsedDocs.find(d => d.id === lastDocId);
       setActiveDocId(restoredDoc ? restoredDoc.id : parsedDocs[0].id);
       // Password cached in Rust by load_vault — no frontend storage
@@ -632,7 +645,7 @@ function App() {
       setIsVaultExists(false);
     }
     setVaultPath(newPath);
-    localStorage.setItem('lazywhisper-vault-path', newPath);
+    setVaultPath(newPath);
     forceLock();
     setIsChecking(false);
   };
@@ -678,7 +691,7 @@ function App() {
         }
 
         // Normal Creation (Sandbox)
-        localStorage.setItem('lazywhisper-vault-path', safePath);
+        setVaultPath(safePath);
         setVaultPath(safePath);
         setIsVaultExists(false); // Creating a new one
         setIsForceOverwrite(false);
@@ -700,7 +713,7 @@ function App() {
           }
 
           // Normal Creation (Desktop)
-          localStorage.setItem('lazywhisper-vault-path', filePath);
+          setVaultPath(filePath);
           setVaultPath(filePath);
           setIsVaultExists(false); // Creating a new one
           setIsForceOverwrite(false);
@@ -736,7 +749,7 @@ function App() {
           }
           
           setIsVaultExists(true); // Treat as existing, go to Unlock screen
-          localStorage.setItem('lazywhisper-vault-path', safePath);
+          setVaultPath(safePath);
           setVaultPath(safePath);
           setNeedsOnboarding(false);
 
@@ -745,7 +758,7 @@ function App() {
           const fileExists = await invoke<boolean>('check_vault_exists', { path: filePath }).catch(() => false);
           setIsVaultExists(fileExists);
 
-          localStorage.setItem('lazywhisper-vault-path', filePath);
+          setVaultPath(filePath);
           setVaultPath(filePath);
           setNeedsOnboarding(false);
         }
@@ -785,7 +798,6 @@ function App() {
             <div className="flex flex-col gap-3 mt-2">
               <button
                 onClick={() => {
-                  localStorage.setItem('lazywhisper-vault-path', onboardingConflictPath);
                   setVaultPath(onboardingConflictPath);
                   setIsVaultExists(true); // Route to unlock!
                   setIsForceOverwrite(false);
@@ -804,7 +816,6 @@ function App() {
                     kind: 'warning'
                   });
                   if (confirmed) {
-                    localStorage.setItem('lazywhisper-vault-path', onboardingConflictPath);
                     setVaultPath(onboardingConflictPath);
                     setIsVaultExists(false); // Route to create!
                     setIsForceOverwrite(true); // FLAG TO WIPE IT!
@@ -989,7 +1000,7 @@ function App() {
         autoLockMin={autoLockMin}
         onAutoLockChange={(min) => {
           setAutoLockMin(min);
-          localStorage.setItem('lazywhisper-autolock-time', min.toString());
+          setAutoLockMin(min);
         }}
       />
     </WhisperRadarProvider>

@@ -96,13 +96,12 @@ pub fn decrypt_v1(data: &[u8], password: &Zeroizing<String>) -> Result<Zeroizing
 
     // 5. Convert to String — consume Vec directly, no .clone()
     //    On failure, FromUtf8Error owns the original bytes — reclaim and zeroize them.
-    let plaintext = String::from_utf8(plaintext_bytes)
-        .map_err(|e| {
-            // Reclaim the original bytes from the error (no extra copy)
-            let mut failed_bytes = e.into_bytes();
-            failed_bytes.zeroize();
-            "Invalid UTF-8 sequence".to_string()
-        })?;
+    let plaintext = String::from_utf8(plaintext_bytes).map_err(|e| {
+        // Reclaim the original bytes from the error (no extra copy)
+        let mut failed_bytes = e.into_bytes();
+        failed_bytes.zeroize();
+        "Invalid UTF-8 sequence".to_string()
+    })?;
 
     Ok(Zeroizing::new(plaintext))
 }
@@ -140,8 +139,7 @@ pub fn encrypt_v2(
     // Zeroize the compressed intermediate immediately
     compressed.zeroize();
 
-    let mut ciphertext = encrypt_result
-        .map_err(|e| format!("Encryption failed: {}", e))?;
+    let mut ciphertext = encrypt_result.map_err(|e| format!("Encryption failed: {}", e))?;
 
     // 7. Combine salt + nonce + ciphertext
     let mut result = Vec::with_capacity(salt.len() + nonce_bytes.len() + ciphertext.len());
@@ -183,22 +181,18 @@ pub fn decrypt_v2(data: &[u8], password: &Zeroizing<String>) -> Result<Zeroizing
     // Zeroize compressed intermediate regardless of outcome
     compressed.zeroize();
 
-    let mut decompressed = decompressed_result
-        .map_err(|e| {
-            format!("Decompression failed: {}", e)
-        })?;
+    let mut decompressed =
+        decompressed_result.map_err(|e| format!("Decompression failed: {}", e))?;
 
     // 5. Convert to String
-    let plaintext = String::from_utf8(decompressed.clone())
-        .map_err(|e| {
-            let mut failed_bytes = e.into_bytes();
-            failed_bytes.zeroize();
-            decompressed.zeroize();
-            "Invalid UTF-8 sequence".to_string()
-        })?;
+    let plaintext = String::from_utf8(decompressed.clone()).map_err(|e| {
+        let mut failed_bytes = e.into_bytes();
+        failed_bytes.zeroize();
+        decompressed.zeroize();
+        "Invalid UTF-8 sequence".to_string()
+    })?;
 
     decompressed.zeroize();
 
     Ok(Zeroizing::new(plaintext))
 }
-

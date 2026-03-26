@@ -5,6 +5,7 @@ import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAppStore } from '../../store';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
   const [appVersion, setAppVersion] = useState('');
   const [cryptoVersion, setCryptoVersion] = useState('..');
   const { theme, setTheme } = useTheme();
+  const setStoreLang = useAppStore((state) => state.setLang);
 
   // UX State
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
@@ -203,7 +205,7 @@ export function SettingsModal({ isOpen, onClose, currentVaultPath, onVaultPathCh
                   value={i18n.language}
                   onChange={(e) => {
                     i18n.changeLanguage(e.target.value);
-                    localStorage.setItem('lazywhisper-lang', e.target.value);
+                    setStoreLang(e.target.value);
                   }}
                   className="appearance-none min-h-[44px] bg-white border border-gray-200 rounded-lg py-3 md:py-2.5 px-3 text-base md:text-sm text-gray-700 w-full focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                 >

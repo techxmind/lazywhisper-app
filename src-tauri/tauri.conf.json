@@ -13,6 +13,7 @@
     "windows": [
       {
         "title": "LazyWhisper",
+        "visible": false,
         "width": 1100,
         "height": 750,
         "minWidth": 800,

@@ -86,7 +86,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
   }, []);
 
   const baselineContentRef = useRef<string>('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSealModalOpen, setIsSealModalOpen] = useState(false);
   const [currentCoverText, setCurrentCoverText] = useState('');
   const [whisperKey, setWhisperKey] = useState('');
   const [confirmWhisperKey, setConfirmWhisperKey] = useState('');
@@ -130,7 +130,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
   // Robust AutoFocus for Create Modal
   useEffect(() => {
-    if (isModalOpen) {
+    if (isSealModalOpen) {
       const timer = setTimeout(() => {
         if (!sessionWhisperKey) {
           createModalInputRef.current?.focus();
@@ -140,7 +140,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [isModalOpen, sessionWhisperKey]);
+  }, [isSealModalOpen, sessionWhisperKey]);
 
   // Robust AutoFocus for Reveal Modal
   useEffect(() => {
@@ -687,15 +687,15 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
           setActivePopoverData(null);
         } else if (isExportModalOpen) {
           setIsExportModalOpen(false);
-        } else if (isModalOpen) {
-          setIsModalOpen(false);
+        } else if (isSealModalOpen) {
+          setIsSealModalOpen(false);
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [isRevealModalOpen, isExportModalOpen, isImportPasswordOpen, isImportConfirmOpen, isModalOpen, activePopoverData, isSearchOpen, closeSearch]);
+  }, [isRevealModalOpen, isExportModalOpen, isImportPasswordOpen, isImportConfirmOpen, isSealModalOpen, activePopoverData, isSearchOpen, closeSearch]);
 
   if (!editor) {
     return null;
@@ -784,14 +784,14 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       console.error('Failed to export', e);
     } finally {
       setIsExporting(false);
-      
+
       // 3. Ultimate lifecycle cleanup loop
       if (isSmuggled && mobileTempPath) {
         setTimeout(async () => {
           try {
             if (await exists(mobileTempPath)) {
-               await remove(mobileTempPath);
-               console.log('✅ Temporary Export Sandbox File Cleaned Up Safely.');
+              await remove(mobileTempPath);
+              console.log('✅ Temporary Export Sandbox File Cleaned Up Safely.');
             }
           } catch (cleanupErr) {
             console.error('❌ Failed to cleanup smuggler export temp file:', cleanupErr);
@@ -992,7 +992,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       setWhisperKey('');
     }
 
-    setIsModalOpen(true);
+    setIsSealModalOpen(true);
   };
 
   const handleSealWhisper = async () => {
@@ -1044,7 +1044,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       }).run();
     }
 
-    setIsModalOpen(false);
+    setIsSealModalOpen(false);
     setWhisperKey('');
     setConfirmWhisperKey('');
     setRealSecret('');
@@ -1187,14 +1187,14 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
           editor={editor}
           tippyOptions={{
             duration: 100,
-            appendTo: () => document.body,
-            zIndex: 99999,
             maxWidth: '90vw',
             offset: [0, 12],
           }}
-          className="flex items-center p-1 space-x-1 bg-white border border-gray-200 shadow-md rounded-lg relative pointer-events-auto"
+          className={`flex items-center p-1 space-x-1 bg-white border border-gray-200 shadow-md rounded-lg relative transition-opacity duration-150 ${isRevealModalOpen || isSealModalOpen ? 'opacity-0 pointer-events-none invisible' : 'opacity-100'}`}
           shouldShow={({ state, from, to }) => {
-            if (isRevealModalOpen) return false;
+            // Tiptap native state checks
+            if (isRevealModalOpen || isSealModalOpen) return false;
+            
             if (typeof window !== 'undefined' && window.innerWidth < 768) return false;
 
             // Allow Tiptap state checking
@@ -1205,17 +1205,16 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
             const text = doc.textBetween(from, to, ' ');
             if (text.trim() === '') return false;
 
-            // Extra strictly check DOM selection
-            const domSelection = window.getSelection();
-            if (!domSelection || domSelection.isCollapsed || domSelection.toString().trim() === '') return false;
-
+            // Tiptap state already correctly models Prosemirror's logical selection.
+            // DO NOT check window.getSelection() here natively because clicking the BubbleMenu buttons 
+            // natively collapses the DOM selection, triggering a premature exact-frame unmount before clicks register!
             return true;
           }}
         >
           <button
             type="button"
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={() => editor.chain().focus().toggleBold().run()}
+            onMouseDown={(e) => e.preventDefault()}
+            onMouseUp={(e) => { e.preventDefault(); editor.chain().focus().toggleBold().run(); }}
             className={`p-1.5 rounded-md transition-colors ${editor.isActive('bold') ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`}
             title={t('menu.bold')}
           >
@@ -1224,8 +1223,8 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
           <button
             type="button"
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={() => editor.chain().focus().toggleItalic().run()}
+            onMouseDown={(e) => e.preventDefault()}
+            onMouseUp={(e) => { e.preventDefault(); editor.chain().focus().toggleItalic().run(); }}
             className={`p-1.5 rounded-md transition-colors ${editor.isActive('italic') ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`}
             title={t('menu.italic')}
           >
@@ -1237,8 +1236,8 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
           <div className="relative">
             <button
               type="button"
-              onPointerDown={(e) => e.preventDefault()}
-              onClick={() => setShowPalette(!showPalette)}
+              onMouseDown={(e) => e.preventDefault()}
+              onMouseUp={(e) => { e.preventDefault(); setShowPalette(!showPalette); }}
               className="p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 rounded-md transition-colors"
               title="Text Color"
             >
@@ -1250,8 +1249,9 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
                   <button
                     key={color}
                     type="button"
-                    onPointerDown={(e) => e.preventDefault()}
-                    onClick={() => {
+                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseUp={(e) => {
+                      e.preventDefault();
                       editor.chain().focus().setColor(color).run();
                       setShowPalette(false);
                     }}
@@ -1265,8 +1265,8 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
           <button
             type="button"
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={() => editor.chain().focus().toggleHighlight().run()}
+            onMouseDown={(e) => e.preventDefault()}
+            onMouseUp={(e) => { e.preventDefault(); editor.chain().focus().toggleHighlight().run(); }}
             className={`p-1.5 rounded-md transition-colors ${editor.isActive('highlight') ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`}
             title="Highlight"
           >
@@ -1275,8 +1275,9 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
           <button
             type="button"
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={() => {
+            onMouseDown={(e) => e.preventDefault()}
+            onMouseUp={(e) => {
+              e.preventDefault();
               const fileInput = document.createElement('input');
               fileInput.type = 'file';
               fileInput.accept = 'image/*';
@@ -1303,8 +1304,13 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
           <button
             type="button"
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={handleWhisperToolClick}
+            onMouseDown={(e) => { e.preventDefault(); }}
+            onMouseUp={(e) => {
+              e.preventDefault();
+              setTimeout(() => {
+                handleWhisperToolClick();
+              }, 0);
+            }}
             className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
           >
             <Lock className="w-3.5 h-3.5" />
@@ -1412,7 +1418,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       </div>
 
       {/* 密语封存弹窗 Seal Modal */}
-      {isModalOpen && (
+      {isSealModalOpen && (
         <div className="fixed inset-0 z-50 flex items-start pt-[15dvh] md:items-center md:pt-0 justify-center p-4 bg-black/20">
           <div className="bg-white border border-gray-200 rounded-md w-full max-w-[480px] p-6 flex flex-col gap-6 max-h-[70dvh] overflow-y-auto">
             <div>
@@ -1485,7 +1491,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
             <div className="flex justify-end gap-3 mt-8">
               <button
                 className="bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-gray-200 focus:ring-offset-1"
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => setIsSealModalOpen(false)}
               >
                 {t('modal.cancel')}
               </button>
@@ -1825,7 +1831,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
                               } else {
                                 setWhisperKey('');
                               }
-                              setIsModalOpen(true);
+                              setIsSealModalOpen(true);
                               setActivePopoverData(null);
                             }}
                             title="Edit whisper"
@@ -1862,7 +1868,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       >
         <button
           type="button"
-          onPointerDown={(e) => e.preventDefault()}
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor?.chain().focus().toggleBold().run()}
           className={`p-2 rounded-md transition-colors shrink-0 ${editor?.isActive('bold') ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-800'}`}
         >
@@ -1870,7 +1876,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
         </button>
         <button
           type="button"
-          onPointerDown={(e) => e.preventDefault()}
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor?.chain().focus().toggleItalic().run()}
           className={`p-2 rounded-md transition-colors shrink-0 ${editor?.isActive('italic') ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-800'}`}
         >
@@ -1891,7 +1897,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
         <button
           type="button"
-          onPointerDown={(e) => e.preventDefault()}
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor?.chain().focus().toggleHighlight().run()}
           className={`p-2 rounded-md transition-colors shrink-0 ${editor?.isActive('highlight') ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-800'}`}
         >
@@ -1924,7 +1930,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
         <button
           type="button"
-          onPointerDown={(e) => e.preventDefault()}
+          onMouseDown={(e) => e.preventDefault()}
           onClick={handleWhisperToolClick}
           className="flex items-center justify-center gap-1.5 p-2 px-3 shrink-0 rounded-md transition-colors text-blue-600 dark:text-blue-500 bg-blue-50 dark:bg-blue-900/30 font-medium ml-auto"
         >

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useAppStore } from '../store';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -11,9 +12,8 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(
-    () => (localStorage.getItem('lazywhisper-theme') as Theme) || 'system'
-  );
+  const storeTheme = useAppStore((state) => state.theme);
+  const setStoreTheme = useAppStore((state) => state.setTheme);
   
   const [actualTheme, setActualTheme] = useState<'light' | 'dark'>('light');
 
@@ -23,9 +23,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     const applyTheme = () => {
       let isDark = false;
-      if (theme === 'dark') {
+      if (storeTheme === 'dark') {
         isDark = true;
-      } else if (theme === 'system') {
+      } else if (storeTheme === 'system') {
         isDark = mediaQuery.matches;
       }
 
@@ -43,20 +43,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     // Listen for system preference changes if in 'system' mode
     const handler = () => {
-      if (theme === 'system') applyTheme();
+      if (storeTheme === 'system') applyTheme();
     };
     mediaQuery.addEventListener('change', handler);
 
     return () => mediaQuery.removeEventListener('change', handler);
-  }, [theme]);
+  }, [storeTheme]);
 
   const setTheme = (newTheme: Theme) => {
-    localStorage.setItem('lazywhisper-theme', newTheme);
-    setThemeState(newTheme);
+    setStoreTheme(newTheme);
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, actualTheme }}>
+    <ThemeContext.Provider value={{ theme: storeTheme as Theme, setTheme, actualTheme }}>
       {children}
     </ThemeContext.Provider>
   );

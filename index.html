@@ -10,7 +10,58 @@
 </head>
 
 <body style="margin: 0; padding: 0;">
-  <div id="root"></div>
+  <div id="root">
+    <style>
+      #root-loader {
+        position: fixed; inset: 0; overflow: hidden;
+        display: flex; align-items: center; justify-content: center;
+        transition: background-color 0.2s ease;
+      }
+      .blob { position: absolute; border-radius: 50%; filter: blur(120px); pointer-events: none; mix-blend-mode: multiply; }
+      .dark .blob { mix-blend-mode: screen; }
+      
+      .blob-1 { width: 24rem; height: 24rem; top: -10%; left: -10%; background-color: rgba(165, 180, 252, 0.4); }
+      .dark .blob-1 { background-color: rgba(49, 46, 129, 0.4); }
+      
+      .blob-2 { width: 24rem; height: 24rem; top: 10%; right: -10%; background-color: rgba(216, 180, 254, 0.4); }
+      .dark .blob-2 { background-color: rgba(88, 28, 135, 0.4); }
+      
+      .blob-3 { width: 30rem; height: 30rem; bottom: -20%; left: 20%; background-color: rgba(125, 211, 252, 0.4); }
+      .dark .blob-3 { background-color: rgba(12, 74, 110, 0.4); }
+      
+      .logo-pulse {
+        width: 4rem; height: 4rem; z-index: 10;
+        color: #27272a; opacity: 0.4;
+        animation: pulse-op 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+      .dark .logo-pulse { color: #e4e4e7; }
+      @keyframes pulse-op { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    </style>
+    <div id="root-loader">
+      <div class="blob blob-1"></div>
+      <div class="blob blob-2"></div>
+      <div class="blob blob-3"></div>
+      <svg viewBox="0 0 24 24" fill="none" class="logo-pulse" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+    </div>
+    <script>
+      (function() {
+        try {
+          // Double-Write Sync: Read from the synchronous local storage bridge to bypass native IPC latency
+          var theme = localStorage.getItem('lazywhisper-theme-sync') || 'system';
+          var isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+          }
+          var loader = document.getElementById('root-loader');
+          if (loader) {
+            loader.style.backgroundColor = isDark ? '#09090b' : '#fafafa'; /* zinc-950 vs zinc-50 */
+          }
+          document.body.style.backgroundColor = isDark ? '#09090b' : '#fafafa';
+        } catch (e) {}
+      })();
+    </script>
+  </div>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 

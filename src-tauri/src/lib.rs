@@ -5,7 +5,7 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::{Manager, Emitter};
+use tauri::{Emitter, Manager};
 use zeroize::Zeroizing;
 
 const CURRENT_CRYPTO_VERSION: &str = "v2";
@@ -55,13 +55,17 @@ fn sanitize_vault_path(filename: &str) -> Result<PathBuf, String> {
         // Relative filename — strict character validation
         // Only allow: a-z, A-Z, 0-9, hyphen, underscore, dot (for extension)
         let stem = filename.strip_suffix(".wspace").unwrap_or(filename);
-        if !stem.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+        if !stem
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        {
             return Err("Invalid filename: contains illegal characters".to_string());
         }
         if stem.is_empty() {
             return Err("Invalid filename: empty stem".to_string());
         }
-        let mut file_path = PathBuf::from(env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+        let mut file_path =
+            PathBuf::from(env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
         file_path.push(filename);
         Ok(file_path)
     }
@@ -81,12 +85,12 @@ fn write_debug_log(_msg: &str) {
     /*
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
     let log_entry = format!("[{}] {}\n", now, msg);
-    
+
     // Write directly to macOS /tmp directory for diagnosis
     if let Ok(mut file) = OpenOptions::new()
         .create(true)
         .append(true)
-        .open("/tmp/lazywhisper_debug.log") 
+        .open("/tmp/lazywhisper_debug.log")
     {
         let _ = file.write_all(log_entry.as_bytes());
     }
@@ -94,17 +98,26 @@ fn write_debug_log(_msg: &str) {
 }
 
 #[tauri::command]
-fn save_vault(filename: String, content: String, force_overwrite: Option<bool>) -> Result<bool, String> {
+fn save_vault(
+    filename: String,
+    content: String,
+    force_overwrite: Option<bool>,
+) -> Result<bool, String> {
     let file_path = sanitize_vault_path(&filename)?;
 
     if force_overwrite.unwrap_or(false) && file_path.exists() {
-        std::fs::remove_file(&file_path).map_err(|e| sanitize_io_error("Failed to remove existing workspace", &e))?;
+        std::fs::remove_file(&file_path)
+            .map_err(|e| sanitize_io_error("Failed to remove existing workspace", &e))?;
     }
 
     // Read password from session cache — never passed from frontend
     let password_z = {
-        let guard = SESSION_PASSWORD.lock().map_err(|_| "Session lock poisoned".to_string())?;
-        guard.clone().ok_or_else(|| "No active session: please unlock first".to_string())?
+        let guard = SESSION_PASSWORD
+            .lock()
+            .map_err(|_| "Session lock poisoned".to_string())?;
+        guard
+            .clone()
+            .ok_or_else(|| "No active session: please unlock first".to_string())?
     };
     let content_z = Zeroizing::new(content);
 
@@ -160,7 +173,9 @@ fn load_vault(filename: String, password: String) -> Result<String, String> {
 
     // Cache password on successful decrypt — frontend no longer stores it
     {
-        let mut guard = SESSION_PASSWORD.lock().map_err(|_| "Session lock poisoned".to_string())?;
+        let mut guard = SESSION_PASSWORD
+            .lock()
+            .map_err(|_| "Session lock poisoned".to_string())?;
         *guard = Some(Zeroizing::new(password));
     }
 
@@ -182,7 +197,9 @@ fn import_vault(filename: String, password: String) -> Result<String, String> {
 /// The frontend passes the password once, then forgets it.
 #[tauri::command]
 fn cache_session_password(password: String) -> Result<bool, String> {
-    let mut guard = SESSION_PASSWORD.lock().map_err(|_| "Session lock poisoned".to_string())?;
+    let mut guard = SESSION_PASSWORD
+        .lock()
+        .map_err(|_| "Session lock poisoned".to_string())?;
     *guard = Some(Zeroizing::new(password));
     Ok(true)
 }
@@ -191,17 +208,26 @@ fn cache_session_password(password: String) -> Result<bool, String> {
 /// The Zeroizing<String> wrapper ensures memory is overwritten on drop.
 #[tauri::command]
 fn clear_session() -> Result<bool, String> {
-    let mut guard = SESSION_PASSWORD.lock().map_err(|_| "Session lock poisoned".to_string())?;
+    let mut guard = SESSION_PASSWORD
+        .lock()
+        .map_err(|_| "Session lock poisoned".to_string())?;
     *guard = None; // Zeroizing::drop() overwrites the memory
     Ok(true)
 }
 
 /// Change the vault password: verify old password matches session, re-encrypt vault, update cache.
 #[tauri::command]
-fn change_vault_password(filename: String, old_password: String, new_password: String, content: String) -> Result<bool, String> {
+fn change_vault_password(
+    filename: String,
+    old_password: String,
+    new_password: String,
+    content: String,
+) -> Result<bool, String> {
     // Verify old password matches current session
     {
-        let guard = SESSION_PASSWORD.lock().map_err(|_| "Session lock poisoned".to_string())?;
+        let guard = SESSION_PASSWORD
+            .lock()
+            .map_err(|_| "Session lock poisoned".to_string())?;
         let cached = guard.as_ref().ok_or("No active session".to_string())?;
         if cached.as_str() != old_password {
             return Err("Incorrect current password".to_string());
@@ -221,7 +247,9 @@ fn change_vault_password(filename: String, old_password: String, new_password: S
 
     // Update session cache with new password
     {
-        let mut guard = SESSION_PASSWORD.lock().map_err(|_| "Session lock poisoned".to_string())?;
+        let mut guard = SESSION_PASSWORD
+            .lock()
+            .map_err(|_| "Session lock poisoned".to_string())?;
         *guard = Some(new_password_z);
     }
 
@@ -244,7 +272,8 @@ fn export_shared_file(
     payload.append(&mut encrypted_bytes);
 
     // Save to specified file path (validated by Tauri dialog, but sanitize write errors)
-    fs::write(&file_path, payload).map_err(|e| sanitize_io_error("Failed to export shared file", &e))?;
+    fs::write(&file_path, payload)
+        .map_err(|e| sanitize_io_error("Failed to export shared file", &e))?;
 
     Ok(true)
 }
@@ -259,10 +288,7 @@ fn encrypt_secret(plaintext: String, key: String) -> Result<String, String> {
     let plain_z = Zeroizing::new(plaintext);
     let key_z = Zeroizing::new(key);
     let encrypted_bytes = crypto::encrypt_v1(&plain_z, &key_z)?;
-    Ok(format!(
-        "v1:{}",
-        STANDARD.encode(encrypted_bytes)
-    ))
+    Ok(format!("v1:{}", STANDARD.encode(encrypted_bytes)))
 }
 
 pub fn parse_and_decrypt_string(ciphertext: &str, key: &str) -> Result<String, String> {
@@ -330,23 +356,33 @@ fn frontend_is_ready() -> Vec<String> {
 fn handle_opened_file(app: &tauri::AppHandle, path: String) {
     println!("[Rust] 准备将路径交接给前端... {}", path);
     write_debug_log(&format!("📦 [RUST] 准备将路径交接给前端... {}", path));
-    
+
     // 1. Queue it for cold starts (Front-end might not have `listen` ready)
     if let Ok(mut pending) = PENDING_PATHS.lock() {
         pending.push(path.clone());
-        write_debug_log(&format!("📥 [RUST] 路径已存入全局静态 PENDING_PATHS 队列: {}", path));
+        write_debug_log(&format!(
+            "📥 [RUST] 路径已存入全局静态 PENDING_PATHS 队列: {}",
+            path
+        ));
     } else {
         write_debug_log("❌ [RUST] 将路径存入队列失败：无法获取 PENDING_PATHS 锁");
     }
-    
+
     // 2. Broadcast it for warm starts (Front-end is already `listen`ing)
     let _ = app.emit("wspace-file-opened", &path);
+}
+
+#[tauri::command]
+fn force_exit(app_handle: tauri::AppHandle) {
+    write_debug_log("💀 [RUST] 收到前端强制自杀指令，开始执行 app_handle.exit(0)");
+    app_handle.exit(0);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     write_debug_log("🚀 [RUST] 应用程序进程启动");
     let mut builder = tauri::Builder::default()
+        .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {
             let args: Vec<String> = std::env::args().collect();
             write_debug_log(&format!("📦 [RUST SETUP] 拿到命令行参数: {:?}", args));
@@ -437,23 +473,24 @@ pub fn run() {
 
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
     {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            // Windows / Linux duplicate launch args interception
-            for arg in args {
-                if arg.ends_with(".wspace") {
-                    println!("[Rust SingleInstance] 收到新实例参数: {}", arg);
-                    handle_opened_file(app.app_handle(), arg);
-                    
-                    // Focus the existing window
-                    if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.unminimize();
-                        let _ = window.set_focus();
+        builder = builder
+            .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+                // Windows / Linux duplicate launch args interception
+                for arg in args {
+                    if arg.ends_with(".wspace") {
+                        println!("[Rust SingleInstance] 收到新实例参数: {}", arg);
+                        handle_opened_file(app.app_handle(), arg);
+
+                        // Focus the existing window
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.unminimize();
+                            let _ = window.set_focus();
+                        }
+                        break;
                     }
-                    break;
                 }
-            }
-        }))
-        .plugin(tauri_plugin_window_state::Builder::default().build());
+            }))
+            .plugin(tauri_plugin_window_state::Builder::default().build());
     }
 
     builder
@@ -471,6 +508,7 @@ pub fn run() {
             decrypt_secret,
             frontend_is_ready,
             log_to_rust,
+            force_exit,
             cache_session_password,
             clear_session,
             change_vault_password,
@@ -482,8 +520,14 @@ pub fn run() {
             #[cfg(any(target_os = "macos", target_os = "ios"))]
             tauri::RunEvent::Opened { urls } => {
                 // macOS AppleEvents / Deep linking interception
-                println!("🚨 [MACOS ALERT] 操作系统触发了 Opened 事件! 包含 {} 个 URL", urls.len());
-                write_debug_log(&format!("🍎 [MACOS APPLE EVENT] 收到 Opened 事件, 包含 URLs: {:?}", urls));
+                println!(
+                    "🚨 [MACOS ALERT] 操作系统触发了 Opened 事件! 包含 {} 个 URL",
+                    urls.len()
+                );
+                write_debug_log(&format!(
+                    "🍎 [MACOS APPLE EVENT] 收到 Opened 事件, 包含 URLs: {:?}",
+                    urls
+                ));
                 for url in urls {
                     println!("🚨 [MACOS URL] 原始 URL 字符串: {}", url.as_str());
                     let path_str = match url.to_file_path() {
@@ -630,7 +674,8 @@ mod tests {
     #[test]
     fn test_case_f_v2_round_trip() {
         let password = "v2_test_password";
-        let plaintext = r#"[{"id":"1","title":"Test","content":"<p>Hello v2 compressed world!</p>"}]"#;
+        let plaintext =
+            r#"[{"id":"1","title":"Test","content":"<p>Hello v2 compressed world!</p>"}]"#;
 
         let password_z = Zeroizing::new(password.to_string());
         let plain_z = Zeroizing::new(plaintext.to_string());
@@ -658,7 +703,8 @@ mod tests {
         // --- Write v2 file, read back ---
         let v2_path = temp_dir.join(format!("test_v2_{}.wspace", ts));
         let v2_str = v2_path.to_str().unwrap().to_string();
-        let save_res = export_shared_file(v2_str.clone(), password.to_string(), content.to_string());
+        let save_res =
+            export_shared_file(v2_str.clone(), password.to_string(), content.to_string());
         assert!(save_res.is_ok());
         let v2_data = fs::read(&v2_path).unwrap();
         assert!(v2_data.starts_with(b"v2:"));
