@@ -58,8 +58,6 @@ function App() {
     }
   }, []);
 
-  // Auto-focus trigger for Editor
-  const [editorFocusTrigger, setEditorFocusTrigger] = useState<number>(0);
   const [unlockError, setUnlockError] = useState("");
   const [sessionKeys, setSessionKeys] = useState<Record<string, string>>({});
 
@@ -595,7 +593,6 @@ function App() {
     setDocuments(prev => [newDoc, ...prev]);
     setActiveDocId(newDoc.id);
     setUnsavedDocIds(prev => new Set(prev).add(newDoc.id));
-    setEditorFocusTrigger(Date.now()); // Global UX AutoFocus
   };
 
   const handleDeleteDoc = async (id: string) => {
@@ -1007,7 +1004,6 @@ function App() {
                   isSaving={isSaving}
                   isSaved={isSaved}
                   lastSavedTimestamp={lastSavedTimestamp}
-                  editorFocusTrigger={editorFocusTrigger}
                   editorInstanceRef={editorInstanceRef}
                   onImportDocs={handleImportDocs}
                   currentVaultPath={vaultPath}

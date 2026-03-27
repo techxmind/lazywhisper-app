@@ -172,29 +172,34 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
   const [revealLockoutEndTime, setRevealLockoutEndTime] = useState<number | null>(null);
   const [remainingRevealLockout, setRemainingRevealLockout] = useState(0);
 
-  // Performance Enhancement: Decouple high-frequency typing from Global State
-  const [localContent, setLocalContent] = useState(activeDoc.content);
+  // 🚀 Zero-Render Debounce: decouple high-frequency typing from React render cycle.
+  // Instead of storing HTML in useState (which triggers re-render on every keystroke),
+  // we use a ref-based timer that fires the parent notification with zero React overhead.
   const localContentRef = useRef(activeDoc.content); // For instant sync logic bypassing stale closures
   const localTitleRef = useRef(activeDoc.title || t('sidebar.untitled'));
-
   const wasDirtyRef = useRef(false);
+  const contentDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    const handler = setTimeout(() => {
+  const scheduleContentSync = useCallback(() => {
+    if (contentDebounceRef.current) clearTimeout(contentDebounceRef.current);
+    contentDebounceRef.current = setTimeout(() => {
       const isDirty = localContentRef.current !== baselineContentRef.current;
-      // Only notify App.tsx when dirty state actually changes, or content drifted
       if (isDirty) {
         onContentChange(activeDoc.id, localContentRef.current, localTitleRef.current, true);
         wasDirtyRef.current = true;
       } else if (wasDirtyRef.current) {
-        // Transition: dirty → clean (e.g. after Ctrl+Z) — signal App.tsx to clear dirty flag
         onContentChange(activeDoc.id, localContentRef.current, localTitleRef.current, false);
         wasDirtyRef.current = false;
       }
     }, 500);
+  }, [activeDoc.id, onContentChange]);
 
-    return () => clearTimeout(handler);
-  }, [localContent, activeDoc.id]); // trigger debounce countdown whenever user types
+  // Clean up debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (contentDebounceRef.current) clearTimeout(contentDebounceRef.current);
+    };
+  }, []);
 
   // HIGH-3: Wire editor ref to parent for forceLock destruction
   // + MEDIUM-5: Zeroize all sensitive state on unmount
@@ -241,7 +246,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
       const currentHTML = currentEditor.getHTML();
       localContentRef.current = currentHTML;
-      setLocalContent(currentHTML); // triggers the debounce effect
+      scheduleContentSync(); // 🚀 Zero-render: ref-based debounce, no React setState
     },
     editorProps: {
       attributes: {
@@ -460,10 +465,12 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       if (activeDoc.content !== editor.getHTML()) {
         // Use raw ProseMirror transaction with addToHistory:false
         // to prevent Ctrl+Z from loading previous document content
-        const div = document.createElement('div');
-        div.innerHTML = activeDoc.content;
+        // 🔒 XSS Sandbox: DOMParser creates an inert document that does NOT
+        // execute scripts, fire onerror handlers, or trigger network requests.
+        // Unlike div.innerHTML which pre-executes payloads before Tiptap sanitizes.
+        const sandboxDoc = new DOMParser().parseFromString(activeDoc.content, 'text/html');
         const parser = PMDOMParser.fromSchema(editor.schema);
-        const parsed = parser.parse(div);
+        const parsed = parser.parse(sandboxDoc.body);
         const tr = editor.state.tr
           .replaceWith(0, editor.state.doc.content.size, parsed.content)
           .setMeta('addToHistory', false);
@@ -471,7 +478,6 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
 
         const normalizedHTML = editor.getHTML();
         localContentRef.current = normalizedHTML;
-        setLocalContent(normalizedHTML);
         baselineContentRef.current = normalizedHTML;
       }
       localTitleRef.current = activeDoc.title || t('sidebar.untitled');

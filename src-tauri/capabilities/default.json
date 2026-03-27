@@ -20,9 +20,6 @@
     "fs:allow-read-file",
     "fs:allow-write-file",
     "fs:allow-remove",
-    "fs:scope-document-recursive",
-    "fs:scope-download-recursive",
-    "fs:scope-desktop-recursive",
     "store:default"
   ]
 }
