@@ -183,9 +183,9 @@ export function WhisperPopover({
                 </div>
               ) : popoverDecryptedSecret ? (
                 <>
-                  <div className="flex-1 min-h-0 overflow-y-auto pr-1 pb-1 pt-1">
-                    <div className="font-medium tracking-wide leading-relaxed break-words">
-                      <span className="bg-[#4A7AD2] px-[6px] py-[2px] rounded-[2px] shadow-[0_2px_4px_rgba(74,122,210,0.2)] decoration-clone text-white leading-loose">
+                  <div className="flex-1 min-h-0 overflow-y-auto pb-1 pt-1">
+                    <div className="text-sm font-medium tracking-wide leading-relaxed break-words leading-[1.9rem]">
+                      <span className="bg-[#4A7AD2] px-[6px] py-[2px] rounded-[2px] shadow-[0_2px_4px_rgba(74,122,210,0.2)] decoration-clone text-white">
                         {popoverDecryptedSecret}
                       </span>
                     </div>

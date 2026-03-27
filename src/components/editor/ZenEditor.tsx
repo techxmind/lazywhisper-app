@@ -625,7 +625,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
   );
 
   return (
-    <div className="relative w-full px-0 py-0 md:max-w-[800px] md:mx-auto md:px-8 md:py-12 sm:px-16 sm:py-24 prose prose-slate max-w-none focus:outline-none [&_.ProseMirror]:outline-none flex flex-col h-full bg-white dark:bg-zinc-950">
+    <div className="relative w-full px-0 py-0 md:max-w-[800px] md:mx-auto md:px-8 md:py-12 sm:px-16 sm:py-24 prose prose-slate max-w-none focus:outline-none [&_.ProseMirror]:outline-none flex flex-col bg-white dark:bg-zinc-950">
 
       {/* 桌面端吸顶操作栏：毛玻璃背景 sticky header */}
       <div className="hidden md:flex sticky top-0 z-10 items-center justify-end gap-4 w-full bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md pt-2 pb-4 mb-4">
@@ -652,7 +652,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       <div className="w-full relative flex-1 min-h-0 md:min-h-[500px] flex flex-col mt-4 md:mt-0 px-4 md:px-0 bg-transparent">
 
         {/* Find in Page Floating Panel */}
-        <SearchPanel 
+        <SearchPanel
           editor={editor}
           isOpen={isSearchOpen}
           onClose={closeSearch}
@@ -688,10 +688,10 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
       />
 
       {/* 🧩 Excerpted Modular UI Components */}
-      <ImportModal 
-        ref={importModalRef} 
-        currentVaultPath={currentVaultPath || null} 
-        onImportSuccess={onImportDocs || (() => {})} 
+      <ImportModal
+        ref={importModalRef}
+        currentVaultPath={currentVaultPath || null}
+        onImportSuccess={onImportDocs || (() => { })}
       />
 
       <RevealWhisperModal
