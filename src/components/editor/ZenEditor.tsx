@@ -1808,17 +1808,6 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
                 })()}
 
                 <div className="bg-white dark:bg-zinc-900/95 dark:backdrop-blur-md border border-zinc-200 dark:border-zinc-800 shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.5)] rounded-2xl p-2 md:p-3 w-[calc(100vw-32px)] md:w-[340px] max-w-[340px] max-h-64 flex flex-col relative z-10">
-                  <button
-                    className="absolute top-3 right-3 z-20 p-1.5 min-w-[36px] min-h-[36px] md:min-w-0 md:min-h-0 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors flex items-center justify-center bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md"
-                    onClick={() => {
-                      setActivePopoverData(null);
-                      setPopoverCopied(false);
-                    }}
-                    aria-label={t('reveal.close')}
-                  >
-                    <X className="w-5 h-5 md:w-4 md:h-4" />
-                  </button>
-
                   <div className="flex-1 overflow-y-auto pr-1 pb-1 pt-1">
                     {isPopoverDecrypting ? (
                       <div className="flex items-center gap-2 text-sm text-zinc-400 py-2">
@@ -1831,10 +1820,12 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
                       </div>
                     ) : popoverDecryptedSecret ? (
                       <div className="group/secret flex flex-col gap-4">
-                        <div className="text-lg md:text-xl font-medium tracking-wide text-blue-600 dark:text-blue-400 leading-relaxed break-words pr-10">
-                          {popoverDecryptedSecret}
+                        <div className="font-medium tracking-wide leading-relaxed break-words pr-10">
+                          <span className="bg-[#4A7AD2] px-[6px] py-[2px] rounded-[2px] shadow-[0_2px_4px_rgba(74,122,210,0.2)] decoration-clone text-white leading-loose">
+                            {popoverDecryptedSecret}
+                          </span>
                         </div>
-                        <div className="flex items-center justify-end gap-2 md:gap-1.5 opacity-100 md:opacity-0 md:group-hover/secret:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
+                        <div className="flex items-center justify-end gap-2 md:gap-1.5 pt-3 border-t border-[#f3f4f6] dark:border-[#27272a]">
                           <button
                             className="p-2 md:p-1.5 min-w-[36px] min-h-[36px] md:min-w-[28px] md:min-h-[28px] text-zinc-500 md:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-[10px] md:rounded-md transition-colors flex items-center justify-center bg-zinc-100 md:bg-white/50 dark:bg-zinc-800 md:dark:bg-zinc-900/50"
                             onClick={() => {
