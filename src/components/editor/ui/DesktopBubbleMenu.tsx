@@ -138,9 +138,11 @@ export function DesktopBubbleMenu({ editor, onSealClick }: DesktopBubbleMenuProp
         onMouseDown={(e) => { e.preventDefault(); }}
         onMouseUp={(e) => {
           e.preventDefault();
-          setTimeout(() => {
-            onSealClick();
-          }, 0);
+          // 1. 同步唤起 Modal，将当前选区的内容发送过去
+          onSealClick();
+          
+          // 2. 清除选区：这是触发 Tiptap 原生的 BubbleMenu 隐藏逻辑最优雅的自带方法
+          editor.commands.setTextSelection(editor.state.selection.to);
         }}
         className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
       >

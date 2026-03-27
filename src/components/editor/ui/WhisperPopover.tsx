@@ -170,7 +170,7 @@ export function WhisperPopover({
             <div className="bg-white dark:bg-zinc-900/95 dark:backdrop-blur-md border border-zinc-200 dark:border-zinc-800 shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.5)] rounded-2xl p-2 md:p-3 w-[calc(100vw-32px)] md:w-[340px] max-w-[340px] max-h-64 flex flex-col relative z-10">
               {isPopoverDecrypting ? (
                 <div className="flex-1 overflow-y-auto pr-1 pb-1 pt-1">
-                  <div className="flex items-center gap-2 text-sm text-zinc-400 py-2">
+                  <div className="flex items-center gap-2 text-sm text-zinc-400 py-2 min-h-[36px] md:min-h-[28px]">
                     <span className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></span>
                     {t('reveal.decrypting')}
                   </div>
@@ -190,7 +190,7 @@ export function WhisperPopover({
                       </span>
                     </div>
                   </div>
-                  <div className="shrink-0 flex items-center justify-end gap-2 md:gap-1.5 pt-2 mt-1 border-t border-[#f3f4f6] dark:border-[#27272a]">
+                  <div className="shrink-0 flex items-center justify-end gap-2 md:gap-1.5 pt-2 mt-2 border-t border-[#f3f4f6] dark:border-[#27272a]">
                     <button
                       className="p-2 md:p-1.5 min-w-[36px] min-h-[36px] md:min-w-[28px] md:min-h-[28px] text-zinc-500 md:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-[10px] md:rounded-md transition-colors flex items-center justify-center bg-zinc-100 md:bg-white/50 dark:bg-zinc-800 md:dark:bg-zinc-900/50"
                       onClick={() => {
