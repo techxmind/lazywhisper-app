@@ -4,6 +4,11 @@ import { initReactI18next } from 'react-i18next';
 const resources = {
   en: {
     translation: {
+      'editor.textColor': 'Text Color',
+      'editor.highlight': 'Highlight',
+      'editor.insertImage': 'Insert Image',
+      'reveal.editWhisper': 'Edit whisper',
+      'reveal.copySecret': 'Copy secret',
       'editor.placeholder': 'Write...',
       'menu.bold': 'Bold',
       'menu.italic': 'Italic',
@@ -160,6 +165,11 @@ const resources = {
   },
   zh: {
     translation: {
+      'editor.textColor': '文本颜色',
+      'editor.highlight': '高亮',
+      'editor.insertImage': '插入图片',
+      'reveal.editWhisper': '编辑密语',
+      'reveal.copySecret': '复制密文',
       'editor.placeholder': '写下你的想法...',
       'menu.bold': '加粗',
       'menu.italic': '斜体',

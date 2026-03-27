@@ -1257,7 +1257,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
               onMouseDown={(e) => e.preventDefault()}
               onMouseUp={(e) => { e.preventDefault(); setShowPalette(!showPalette); }}
               className="p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 rounded-md transition-colors"
-              title="Text Color"
+              title={t('editor.textColor')}
             >
               <Palette className="w-4 h-4" />
             </button>
@@ -1286,7 +1286,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
             onMouseDown={(e) => e.preventDefault()}
             onMouseUp={(e) => { e.preventDefault(); editor.chain().focus().toggleHighlight().run(); }}
             className={`p-1.5 rounded-md transition-colors ${editor.isActive('highlight') ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`}
-            title="Highlight"
+            title={t('editor.highlight')}
           >
             <Highlighter className="w-4 h-4" />
           </button>
@@ -1313,7 +1313,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
               fileInput.click();
             }}
             className="p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 rounded-md transition-colors"
-            title="Insert Image"
+            title={t('editor.insertImage')}
           >
             <ImageIcon className="w-4 h-4" />
           </button>
@@ -1814,7 +1814,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
                       setActivePopoverData(null);
                       setPopoverCopied(false);
                     }}
-                    aria-label="Close"
+                    aria-label={t('reveal.close')}
                   >
                     <X className="w-5 h-5 md:w-4 md:h-4" />
                   </button>
@@ -1851,7 +1851,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
                               setIsSealModalOpen(true);
                               setActivePopoverData(null);
                             }}
-                            title="Edit whisper"
+                            title={t('reveal.editWhisper')}
                           >
                             <Edit2 className="w-5 h-5 md:w-4 md:h-4" />
                           </button>
@@ -1862,7 +1862,7 @@ export function ZenEditor({ activeDoc, documents, hasActiveSession = false, sess
                               setPopoverCopied(true);
                               setTimeout(() => setPopoverCopied(false), 2000);
                             }}
-                            title="Copy secret"
+                            title={t('reveal.copySecret')}
                           >
                             {popoverCopied ? <Check className="w-5 h-5 md:w-4 md:h-4 text-green-500" /> : <Copy className="w-5 h-5 md:w-4 md:h-4" />}
                           </button>
